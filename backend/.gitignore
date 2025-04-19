@@ -1,1 +1,2 @@
-alembic/versions/
+alembic/versions/*
+!alembic/versions/.gitkeep

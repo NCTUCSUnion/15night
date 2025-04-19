@@ -6,10 +6,6 @@ from datetime import datetime
 
 Base = declarative_base()
 
-class ItemType(enum.Enum):
-    REGULAR = "regular"
-    PRIZE = "prize"
-
 class User(Base):
     __tablename__ = "users"
 
@@ -25,13 +21,14 @@ class User(Base):
 class Block(Base):
     __tablename__ = "blocks"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(100), nullable=False)
-    type = Column(Enum(ItemType), default=ItemType.REGULAR)
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
     enabled = Column(Boolean, default=False)
     prize_chance = Column(Integer, default=0)
+    garbage_chance = Column(Integer, default=0)
+    prize_name = Column(String(255), nullable=True)
     quantity = Column(Integer, default=0)
-    health = Column(Integer, default=100)  # Default health value is 100
+    health = Column(Integer, default=1)
 
 class BackpackItem(Base):
     __tablename__ = "backpack_items"
@@ -47,9 +44,10 @@ class BackpackItem(Base):
 class Prize(Base):
     __tablename__ = "prizes"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    block_id = Column(Integer, ForeignKey("blocks.id"), nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    block_id = Column(Integer, ForeignKey("blocks.id"))
+    prize_name = Column(String(255), nullable=True)
     claimed = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     claimed_at = Column(DateTime, nullable=True)

@@ -19,7 +19,7 @@ from fastapi import Depends, Cookie, Form, Request
 from starlette.middleware.sessions import SessionMiddleware
 from pathlib import Path
 from app.dependencies import get_db
-from app.models import User, Block, BackpackItem, ItemType, Prize
+from app.models import User, Block, BackpackItem, Prize
 from app.config import settings
 
 router = APIRouter()
@@ -214,42 +214,26 @@ async def leaderboard(limit: int = 10, db: Session = Depends(get_db)):
     
     return result
 
-@router.get("/blocks/available")
-async def get_available_blocks(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Get available blocks for mining"""
-    blocks = db.query(Block).filter(Block.enabled == True).all()
-    
-    regular_blocks = [b for b in blocks if b.type == ItemType.REGULAR]
-    prize_blocks = [b for b in blocks if b.type == ItemType.PRIZE]
-    
-    base_prize_chance = 10
-    shovel_bonus = (current_user.shovel_level - 1) * 1
-    prize_chance = min(base_prize_chance + shovel_bonus, 30)
-    
+@router.get("/blocks")
+async def get_all_blocks(db: Session = Depends(get_db)):
+    """Get all blocks available in the game"""
+    blocks = db.query(Block).all()
     result = []
+    
     for block in blocks:
-        block_info = {
+        result.append({
             "id": block.id,
             "name": block.name,
-            "type": block.type.value,
-            "health": block.health  # Include health in response
-        }
-        
-        if block.type == ItemType.PRIZE:
-            block_info["quantity"] = block.quantity
-            block_info["available"] = block.quantity > 0
-        
-        result.append(block_info)
-
+            "health": block.health,
+            "enabled": block.enabled,
+            "has_prizes": block.prize_chance > 0 and block.quantity > 0,
+            "prize_chance": block.prize_chance,
+            "garbage_chance": block.garbage_chance
+        })
+    
     return {
         "blocks": result,
-        "stats": {
-            "total_blocks": len(blocks),
-            "regular_blocks": len(regular_blocks),
-            "prize_blocks": len(prize_blocks),
-            "prize_chance": prize_chance,
-            "shovel_level": current_user.shovel_level
-        }
+        "total_blocks": len(result)
     }
 
 @router.post("/blocks/{block_id}/start")
@@ -260,65 +244,44 @@ async def start_mining(
     db: Session = Depends(get_db)
 ):
     """Start mining a block"""
-    block = db.query(Block).filter(Block.id == block_id, Block.enabled == True).first()
+    block = db.query(Block).filter(Block.id == block_id).first()
     if not block:
-        raise HTTPException(status_code=404, detail=f"Block with id {block_id} not found or not enabled")
+        raise HTTPException(status_code=404, detail=f"Block with id {block_id} not found")
     
     original_block = block
-    is_special = False
-    prize_chance = 0
-    out_of_stock = False
-    
-    if block.type == ItemType.PRIZE:
-        if block.quantity > 0:
-            base_prize_chance = 10
-            shovel_bonus = (current_user.shovel_level - 1) * 1
-            block_bonus = block.prize_chance
-            prize_chance = min(base_prize_chance + shovel_bonus + block_bonus, 30)
+    got_garbage = False
+    got_prize = False
+
+    if random.randint(1, 100) <= block.garbage_chance:
+        got_garbage = True
+    else:
+        if block.enabled:
+            base_prize_chance = block.prize_chance
+            shovel_bonus = (current_user.shovel_level - 1) * 0.5
+            effective_prize_chance = min(base_prize_chance + shovel_bonus, 30)
             
-            is_special = random.randint(1, 100) <= prize_chance
-            
-            if is_special:
+            if random.randint(1, 10000) <= effective_prize_chance and block.quantity > 0:
+                got_prize = True
                 block.quantity -= 1
                 db.commit()
-        else:
-            out_of_stock = True
-            is_special = False
-        
-        if not is_special:
-            regular_blocks = db.query(Block).filter(
-                Block.enabled == True, 
-                Block.type == ItemType.REGULAR
-            ).all()
-            
-            if not regular_blocks:
-                raise HTTPException(status_code=404, detail="No regular blocks found")
-            
-            block = random.choice(regular_blocks)
-
+    
     request.session[f"mining_{current_user.id}"] = {
         "block_id": block.id,
-        "timestamp": time.time()
+        "timestamp": time.time(),
+        "got_prize": got_prize,
+        "got_garbage": got_garbage
     }
     
     return {
         "block_id": block.id,
         "name": block.name,
-        "type": block.type.value,
-        "health": block.health,  # Include health in the response
-        "is_special": is_special or (block.type == ItemType.PRIZE and block.id == original_block.id),
-        "original_request": {
-            "block_id": original_block.id,
-            "name": original_block.name,
-            "type": original_block.type.value,
-            "out_of_stock": out_of_stock,
-            "health": original_block.health  # Include health in the original request info
-        } if block.id != original_block.id else None,
+        "health": block.health,
+        "got_garbage": got_garbage,
+        "got_prize": got_prize,
         "prize_info": {
-            "prize_chance": prize_chance,
-            "roll_succeeded": is_special,
-            "remaining_quantity": original_block.quantity if original_block.type == ItemType.PRIZE else None
-        } if original_block.type == ItemType.PRIZE else None
+            "prize_name": block.prize_name if got_prize else None,
+            "remaining_quantity": block.quantity if got_prize else None
+        } if got_prize else None
     }
 
 @router.post("/blocks/{block_id}/complete")
@@ -337,7 +300,11 @@ async def complete_mining(
             detail="No active mining session found"
         )
     
+    # Extract information from session
     started_block_id = mining_data.get("block_id")
+    got_prize = mining_data.get("got_prize", False)
+    got_garbage = mining_data.get("got_garbage", False)
+    
     if started_block_id != block_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -355,8 +322,10 @@ async def complete_mining(
     if not block:
         raise HTTPException(status_code=404, detail=f"Block with id {block_id} not found")
     
+    # Clear the mining session
     request.session.pop(f"mining_{current_user.id}", None)
     
+    # Add block to backpack
     backpack_item = db.query(BackpackItem).filter(
         BackpackItem.user_id == current_user.id,
         BackpackItem.block_id == block.id
@@ -372,40 +341,39 @@ async def complete_mining(
         )
         db.add(new_item)
     
+    # Calculate money earned based on garbage, prize or normal mining
     base_money = random.randint(1, 5) * current_user.shovel_level
     
-    # Add to prize table if it's a PRIZE type
-    if block.type == ItemType.PRIZE:
-        money_earned = base_money * 2
+    if got_garbage:
+        money_earned = max(1, base_money // 2)  # Reduced earnings for garbage
+        message = f"You found garbage! Reduced money earned."
+    elif got_prize:
+        money_earned = base_money * 2  # Double earnings for prize
         
         # Create a new prize record
         new_prize = Prize(
             user_id=current_user.id,
             block_id=block.id,
+            prize_name=block.prize_name,
             claimed=False
         )
         db.add(new_prize)
+        message = f"Mining completed! You earned a special prize that can be claimed later!"
     else:
         money_earned = base_money
+        message = f"Mining completed! Added {block.name} to backpack."
     
     current_user.money += money_earned
-    
     db.commit()
     
-    response = {
+    return {
         "block_id": block.id,
         "name": block.name,
-        "type": block.type.value,
         "money_earned": money_earned,
-        "message": f"Mining completed! Added {block.name} to backpack and earned {money_earned} money."
+        "got_garbage": got_garbage,
+        "got_prize": got_prize,
+        "message": message + f" Earned {money_earned} money."
     }
-    
-    # Add prize information to the response if applicable
-    if block.type == ItemType.PRIZE:
-        response["is_prize"] = True
-        response["message"] += " You earned a special prize that can be claimed later!"
-    
-    return response
 
 @router.get("/user/stats")
 async def get_user_stats(current_user: User = Depends(get_current_user)):
@@ -454,7 +422,6 @@ async def get_user_backpack(current_user: User = Depends(get_current_user), db: 
             result.append({
                 "block_id": block.id,
                 "name": block.name,
-                "type": block.type.value,
                 "quantity": item.quantity
             })
     
@@ -477,7 +444,6 @@ async def get_user_prizes(current_user: User = Depends(get_current_user), db: Se
                 "id": prize.id,
                 "block_id": block.id,
                 "name": block.name,
-                "type": block.type.value,
                 "claimed": prize.claimed,
                 "created_at": prize.created_at.isoformat(),
                 "claimed_at": prize.claimed_at.isoformat() if prize.claimed_at else None
@@ -538,11 +504,12 @@ async def get_all_block_templates(current_user: User = Depends(get_current_user)
         result.append({
             "id": block.id,
             "name": block.name,
-            "type": block.type.value,
             "enabled": block.enabled,
             "prize_chance": block.prize_chance,
+            "garbage_chance": block.garbage_chance,
+            "prize_name": block.prize_name,
             "quantity": block.quantity,
-            "health": block.health  # Include health in response
+            "health": block.health
         })
     
     return result
@@ -550,11 +517,12 @@ async def get_all_block_templates(current_user: User = Depends(get_current_user)
 @router.post("/admin/blocks")
 async def create_block_template(
     name: str = Body(...), 
-    type: str = Body(...),
     enabled: bool = Body(False),
     prize_chance: int = Body(0),
+    garbage_chance: int = Body(0),
+    prize_name: str = Body(None),
     quantity: int = Body(0),
-    health: int = Body(1),  # Add health parameter with default value 1
+    health: int = Body(1),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -563,12 +531,6 @@ async def create_block_template(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to access admin endpoints"
-        )
-    
-    if type not in ["regular", "prize"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Type must be either 'regular' or 'prize'"
         )
     
     if quantity < 0:
@@ -585,11 +547,12 @@ async def create_block_template(
     
     new_block = Block(
         name=name,
-        type=ItemType.REGULAR if type == "regular" else ItemType.PRIZE,
         enabled=enabled,
         prize_chance=prize_chance,
+        garbage_chance=garbage_chance,
+        prize_name=prize_name,
         quantity=quantity,
-        health=health  # Set the health value
+        health=health
     )
     
     db.add(new_block)
@@ -599,22 +562,24 @@ async def create_block_template(
     return {
         "id": new_block.id,
         "name": new_block.name,
-        "type": new_block.type.value,
         "enabled": new_block.enabled,
         "prize_chance": new_block.prize_chance,
+        "garbage_chance": new_block.garbage_chance,
+        "prize_name": new_block.prize_name,
         "quantity": new_block.quantity,
-        "health": new_block.health  # Include health in response
+        "health": new_block.health
     }
 
 @router.put("/admin/blocks/{block_id}")
 async def update_block(
     block_id: int,
     name: str = Body(None),
-    type: str = Body(None),
     enabled: bool = Body(None),
     prize_chance: int = Body(None),
+    garbage_chance: int = Body(None),
+    prize_name: str = Body(None),
     quantity: int = Body(None),
-    health: int = Body(None),  # Add health parameter
+    health: int = Body(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -635,19 +600,17 @@ async def update_block(
     if name is not None:
         block.name = name
     
-    if type is not None:
-        if type not in ["regular", "prize"]:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Type must be either 'regular' or 'prize'"
-            )
-        block.type = ItemType.REGULAR if type == "regular" else ItemType.PRIZE
-    
     if enabled is not None:
         block.enabled = enabled
         
     if prize_chance is not None:
         block.prize_chance = prize_chance
+        
+    if garbage_chance is not None:
+        block.garbage_chance = garbage_chance
+        
+    if prize_name is not None:
+        block.prize_name = prize_name
         
     if quantity is not None:
         if quantity < 0:
@@ -671,11 +634,12 @@ async def update_block(
     return {
         "id": block.id,
         "name": block.name,
-        "type": block.type.value,
         "enabled": block.enabled,
         "prize_chance": block.prize_chance,
+        "garbage_chance": block.garbage_chance,
+        "prize_name": block.prize_name,
         "quantity": block.quantity,
-        "health": block.health  # Include health in response
+        "health": block.health
     }
 
 @router.put("/admin/blocks/{block_id}/quantity")
@@ -711,15 +675,13 @@ async def update_block_quantity(
     return {
         "id": block.id,
         "name": block.name,
-        "type": block.type.value,
         "enabled": block.enabled,
         "quantity": block.quantity,
         "message": f"Quantity for block {block.name} updated to {quantity}"
     }
 
-@router.put("/admin/blocks/type/{type_name}/toggle")
+@router.put("/admin/blocks/type/toggle")
 async def toggle_blocks_by_type(
-    type_name: str,
     enabled: bool = Body(..., embed=True),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -731,22 +693,13 @@ async def toggle_blocks_by_type(
             detail="Not authorized to access admin endpoints"
         )
     
-    if type_name not in ["regular", "prize"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Type must be either 'regular' or 'prize'"
-        )
-    
-    block_type = ItemType.REGULAR if type_name == "regular" else ItemType.PRIZE
-    
-    affected_rows = db.query(Block).filter(Block.type == block_type).update({Block.enabled: enabled})
+    affected_rows = db.query(Block).update({Block.enabled: enabled})
     db.commit()
     
     return {
-        "type": type_name,
         "enabled": enabled,
         "affected_blocks": affected_rows,
-        "message": f"All {type_name} blocks have been {'enabled' if enabled else 'disabled'}"
+        "message": f"All blocks have been {'enabled' if enabled else 'disabled'}"
     }
 
 @router.get("/admin/users")
@@ -812,22 +765,19 @@ async def seed_blocks(current_user: User = Depends(get_current_user), db: Sessio
         )
     
     if db.query(Block).count() == 0:
-        regular_blocks = [
-            {"name": "Dirt", "type": ItemType.REGULAR, "enabled": True, "prize_chance": 0, "quantity": 0, "health": 1},
-            {"name": "Stone", "type": ItemType.REGULAR, "enabled": True, "prize_chance": 0, "quantity": 0, "health": 3},
-            {"name": "Coal", "type": ItemType.REGULAR, "enabled": True, "prize_chance": 0, "quantity": 0, "health": 5},
-            {"name": "Iron", "type": ItemType.REGULAR, "enabled": True, "prize_chance": 0, "quantity": 0, "health": 7},
-            {"name": "Sand", "type": ItemType.REGULAR, "enabled": True, "prize_chance": 0, "quantity": 0, "health": 2},
-        ]
-
-        prize_blocks = [
-            {"name": "Diamond", "type": ItemType.PRIZE, "enabled": True, "prize_chance": -5, "quantity": 10, "health": 10},
-            {"name": "Emerald", "type": ItemType.PRIZE, "enabled": True, "prize_chance": 0, "quantity": 20, "health": 8},
-            {"name": "Gold", "type": ItemType.PRIZE, "enabled": True, "prize_chance": 5, "quantity": 30, "health": 6},
-            {"name": "Ruby", "type": ItemType.PRIZE, "enabled": True, "prize_chance": 10, "quantity": 5, "health": 12},
+        blocks = [
+            {"name": "Dirt", "enabled": False, "prize_chance": 10, "garbage_chance": 20, "prize_name": None, "quantity": 0, "health": 1},
+            {"name": "Stone", "enabled": False, "prize_chance": 10, "garbage_chance": 15, "prize_name": None, "quantity": 0, "health": 3},
+            {"name": "Coal", "enabled": False, "prize_chance": 15, "garbage_chance": 10, "prize_name": None, "quantity": 0, "health": 5},
+            {"name": "Iron", "enabled": False, "prize_chance": 20, "garbage_chance": 5, "prize_name": None, "quantity": 0, "health": 7},
+            {"name": "Sand", "enabled": False, "prize_chance": 10, "garbage_chance": 30, "prize_name": None, "quantity": 0, "health": 2},
+            {"name": "Diamond", "enabled": False, "prize_chance": 5, "garbage_chance": 0, "prize_name": "Diamond Prize", "quantity": 10, "health": 10},
+            {"name": "Emerald", "enabled": False, "prize_chance": 10, "garbage_chance": 0, "prize_name": "Emerald Prize", "quantity": 20, "health": 8},
+            {"name": "Gold", "enabled": False, "prize_chance": 15, "garbage_chance": 0, "prize_name": "Gold Prize", "quantity": 30, "health": 6},
+            {"name": "Ruby", "enabled": False, "prize_chance": 20, "garbage_chance": 0, "prize_name": "Ruby Prize", "quantity": 5, "health": 12},
         ]
         
-        for block_data in regular_blocks + prize_blocks:
+        for block_data in blocks:
             block = Block(**block_data)
             db.add(block)
         
