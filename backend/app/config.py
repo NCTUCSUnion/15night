@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     
     NYCU_CLIENT_ID: str
     NYCU_CLIENT_SECRET: str
-    NYCU_REDIRECT_URI: str = "http://localhost:8000/api/oauth/nycu/callback"
+    NYCU_REDIRECT_URI: str = "http://localhost:8000/api/oauth/callback"
     NYCU_AUTHORIZE_URL: str = "https://id.nycu.edu.tw/o/authorize/"
     NYCU_TOKEN_URL: str = "https://id.nycu.edu.tw/o/token/"
     NYCU_PROFILE_URL: str = "https://id.nycu.edu.tw/api/profile/"
