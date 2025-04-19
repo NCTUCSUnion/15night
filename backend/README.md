@@ -157,3 +157,102 @@ Response:
   }
 ]
 ```
+
+---
+
+## Admin
+
+### POST /api/admin/blocks
+
+Request:
+
+```json
+{
+  "name": "Gold",
+  "type": "metal",
+  "enabled": true,
+  "prize_chance": 30,
+  "quantity": 10
+}
+```
+
+Response:
+
+```json
+{
+  "id": 3,
+  "message": "Block created"
+}
+```
+
+### PUT /api/admin/blocks/{block_id}
+
+Request:
+
+```json
+{
+  "name": "Silver",
+  "enabled": false
+}
+```
+
+### PUT /api/admin/blocks/{block_id}/quantity
+
+Request:
+
+```json
+{
+  "quantity": 50
+}
+```
+
+### PUT /api/admin/blocks/type/{type_name}/toggle
+
+Request:
+
+```json
+{
+  "enabled": true
+}
+```
+
+### POST /api/admin/seed
+
+Response:
+
+```json
+{
+  "message": "Seeded"
+}
+```
+
+### GET /api/admin/users
+
+Response:
+
+```json
+[
+  {
+    "student_id": "123456",
+    "is_admin": false
+  }
+]
+```
+
+### PUT /api/admin/users/{student_id}/set-admin
+
+Request:
+
+```json
+{
+  "is_admin": true
+}
+```
+
+Response:
+
+```json
+{
+  "message": "User updated"
+}
+```

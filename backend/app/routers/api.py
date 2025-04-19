@@ -13,11 +13,13 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from datetime import datetime
+from sqlalchemy import desc
 from fastapi import Depends, Cookie, Form, Request
 from starlette.middleware.sessions import SessionMiddleware
 from pathlib import Path
 from app.dependencies import get_db
-from app.models import User, Block, BackpackItem, ItemType
+from app.models import User, Block, BackpackItem, ItemType, Prize
 from app.config import settings
 
 router = APIRouter()
@@ -28,7 +30,7 @@ def get_user_from_db(student_id: str, db: Session):
 
 def save_user_to_db(student_id: str, email: str, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.student_id == student_id).first()
-    if existing_user:
+    if (existing_user):
         return existing_user
     
     admin_ids = ["admin", "112550013"]
@@ -229,7 +231,8 @@ async def get_available_blocks(current_user: User = Depends(get_current_user), d
         block_info = {
             "id": block.id,
             "name": block.name,
-            "type": block.type.value
+            "type": block.type.value,
+            "health": block.health  # Include health in response
         }
         
         if block.type == ItemType.PRIZE:
@@ -302,12 +305,14 @@ async def start_mining(
         "block_id": block.id,
         "name": block.name,
         "type": block.type.value,
+        "health": block.health,  # Include health in the response
         "is_special": is_special or (block.type == ItemType.PRIZE and block.id == original_block.id),
         "original_request": {
             "block_id": original_block.id,
             "name": original_block.name,
             "type": original_block.type.value,
-            "out_of_stock": out_of_stock
+            "out_of_stock": out_of_stock,
+            "health": original_block.health  # Include health in the original request info
         } if block.id != original_block.id else None,
         "prize_info": {
             "prize_chance": prize_chance,
@@ -369,8 +374,17 @@ async def complete_mining(
     
     base_money = random.randint(1, 5) * current_user.shovel_level
     
+    # Add to prize table if it's a PRIZE type
     if block.type == ItemType.PRIZE:
         money_earned = base_money * 2
+        
+        # Create a new prize record
+        new_prize = Prize(
+            user_id=current_user.id,
+            block_id=block.id,
+            claimed=False
+        )
+        db.add(new_prize)
     else:
         money_earned = base_money
     
@@ -378,13 +392,20 @@ async def complete_mining(
     
     db.commit()
     
-    return {
+    response = {
         "block_id": block.id,
         "name": block.name,
         "type": block.type.value,
         "money_earned": money_earned,
         "message": f"Mining completed! Added {block.name} to backpack and earned {money_earned} money."
     }
+    
+    # Add prize information to the response if applicable
+    if block.type == ItemType.PRIZE:
+        response["is_prize"] = True
+        response["message"] += " You earned a special prize that can be claimed later!"
+    
+    return response
 
 @router.get("/user/stats")
 async def get_user_stats(current_user: User = Depends(get_current_user)):
@@ -441,4 +462,461 @@ async def get_user_backpack(current_user: User = Depends(get_current_user), db: 
         "items": result,
         "total_items": total_items,
         "unique_items": len(result)
+    }
+
+@router.get("/user/prizes")
+async def get_user_prizes(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get user's prizes"""
+    prizes = db.query(Prize).filter(Prize.user_id == current_user.id).order_by(desc(Prize.created_at)).all()
+    
+    result = []
+    for prize in prizes:
+        block = db.query(Block).filter(Block.id == prize.block_id).first()
+        if block:
+            result.append({
+                "id": prize.id,
+                "block_id": block.id,
+                "name": block.name,
+                "type": block.type.value,
+                "claimed": prize.claimed,
+                "created_at": prize.created_at.isoformat(),
+                "claimed_at": prize.claimed_at.isoformat() if prize.claimed_at else None
+            })
+    
+    return {
+        "prizes": result,
+        "total_prizes": len(result),
+        "claimed_prizes": sum(1 for p in result if p["claimed"])
+    }
+
+@router.put("/user/prizes/{prize_id}/claim")
+async def claim_prize(
+    prize_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Claim a prize"""
+    prize = db.query(Prize).filter(
+        Prize.id == prize_id,
+        Prize.user_id == current_user.id,
+        Prize.claimed == False
+    ).first()
+    
+    if not prize:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Prize not found or already claimed"
+        )
+    
+    block = db.query(Block).filter(Block.id == prize.block_id).first()
+    
+    prize.claimed = True
+    prize.claimed_at = datetime.utcnow()
+    db.commit()
+    
+    return {
+        "id": prize.id,
+        "name": block.name if block else "Unknown",
+        "claimed": prize.claimed,
+        "claimed_at": prize.claimed_at.isoformat(),
+        "message": f"Prize successfully claimed"
+    }
+
+@router.get("/admin/blocks")
+async def get_all_block_templates(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Admin: Get all blocks"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access admin endpoints"
+        )
+    
+    blocks = db.query(Block).all()
+    result = []
+    
+    for block in blocks:
+        result.append({
+            "id": block.id,
+            "name": block.name,
+            "type": block.type.value,
+            "enabled": block.enabled,
+            "prize_chance": block.prize_chance,
+            "quantity": block.quantity,
+            "health": block.health  # Include health in response
+        })
+    
+    return result
+
+@router.post("/admin/blocks")
+async def create_block_template(
+    name: str = Body(...), 
+    type: str = Body(...),
+    enabled: bool = Body(False),
+    prize_chance: int = Body(0),
+    quantity: int = Body(0),
+    health: int = Body(1),  # Add health parameter with default value 1
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Admin: Create new block"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access admin endpoints"
+        )
+    
+    if type not in ["regular", "prize"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Type must be either 'regular' or 'prize'"
+        )
+    
+    if quantity < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Quantity cannot be negative"
+        )
+        
+    if health < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Health must be at least 1"
+        )
+    
+    new_block = Block(
+        name=name,
+        type=ItemType.REGULAR if type == "regular" else ItemType.PRIZE,
+        enabled=enabled,
+        prize_chance=prize_chance,
+        quantity=quantity,
+        health=health  # Set the health value
+    )
+    
+    db.add(new_block)
+    db.commit()
+    db.refresh(new_block)
+    
+    return {
+        "id": new_block.id,
+        "name": new_block.name,
+        "type": new_block.type.value,
+        "enabled": new_block.enabled,
+        "prize_chance": new_block.prize_chance,
+        "quantity": new_block.quantity,
+        "health": new_block.health  # Include health in response
+    }
+
+@router.put("/admin/blocks/{block_id}")
+async def update_block(
+    block_id: int,
+    name: str = Body(None),
+    type: str = Body(None),
+    enabled: bool = Body(None),
+    prize_chance: int = Body(None),
+    quantity: int = Body(None),
+    health: int = Body(None),  # Add health parameter
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Admin: Update block properties"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access admin endpoints"
+        )
+    
+    block = db.query(Block).filter(Block.id == block_id).first()
+    if not block:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Block with id {block_id} not found"
+        )
+    
+    if name is not None:
+        block.name = name
+    
+    if type is not None:
+        if type not in ["regular", "prize"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Type must be either 'regular' or 'prize'"
+            )
+        block.type = ItemType.REGULAR if type == "regular" else ItemType.PRIZE
+    
+    if enabled is not None:
+        block.enabled = enabled
+        
+    if prize_chance is not None:
+        block.prize_chance = prize_chance
+        
+    if quantity is not None:
+        if quantity < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Quantity cannot be negative"
+            )
+        block.quantity = quantity
+        
+    if health is not None:
+        if health < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Health must be at least 1"
+            )
+        block.health = health
+    
+    db.commit()
+    db.refresh(block)
+    
+    return {
+        "id": block.id,
+        "name": block.name,
+        "type": block.type.value,
+        "enabled": block.enabled,
+        "prize_chance": block.prize_chance,
+        "quantity": block.quantity,
+        "health": block.health  # Include health in response
+    }
+
+@router.put("/admin/blocks/{block_id}/quantity")
+async def update_block_quantity(
+    block_id: int,
+    quantity: int = Body(..., embed=True),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Admin: Update block quantity"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access admin endpoints"
+        )
+    
+    block = db.query(Block).filter(Block.id == block_id).first()
+    if not block:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Block with id {block_id} not found"
+        )
+    
+    if quantity < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Quantity cannot be negative"
+        )
+    
+    block.quantity = quantity
+    db.commit()
+    
+    return {
+        "id": block.id,
+        "name": block.name,
+        "type": block.type.value,
+        "enabled": block.enabled,
+        "quantity": block.quantity,
+        "message": f"Quantity for block {block.name} updated to {quantity}"
+    }
+
+@router.put("/admin/blocks/type/{type_name}/toggle")
+async def toggle_blocks_by_type(
+    type_name: str,
+    enabled: bool = Body(..., embed=True),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Admin: Toggle all blocks of a type"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access admin endpoints"
+        )
+    
+    if type_name not in ["regular", "prize"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Type must be either 'regular' or 'prize'"
+        )
+    
+    block_type = ItemType.REGULAR if type_name == "regular" else ItemType.PRIZE
+    
+    affected_rows = db.query(Block).filter(Block.type == block_type).update({Block.enabled: enabled})
+    db.commit()
+    
+    return {
+        "type": type_name,
+        "enabled": enabled,
+        "affected_blocks": affected_rows,
+        "message": f"All {type_name} blocks have been {'enabled' if enabled else 'disabled'}"
+    }
+
+@router.get("/admin/users")
+async def get_all_users(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Admin: Get all users"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access admin endpoints"
+        )
+    
+    users = db.query(User).all()
+    result = []
+    
+    for user in users:
+        result.append({
+            "id": user.id,
+            "student_id": user.student_id,
+            "shovel_level": user.shovel_level,
+            "money": user.money,
+            "is_admin": user.is_admin
+        })
+    
+    return result
+
+@router.put("/admin/users/{student_id}/set-admin")
+async def set_admin_status(
+    student_id: str,
+    is_admin: bool = Body(..., embed=True),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Admin: Set admin status for a user"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access admin endpoints"
+        )
+    
+    user = db.query(User).filter(User.student_id == student_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with student_id {student_id} not found"
+        )
+    
+    user.is_admin = is_admin
+    db.commit()
+    
+    return {
+        "student_id": user.student_id,
+        "is_admin": user.is_admin,
+        "message": f"Admin status for {student_id} set to {is_admin}"
+    }
+
+@router.post("/admin/seed")
+async def seed_blocks(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Admin: Seed database with initial blocks"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access admin endpoints"
+        )
+    
+    if db.query(Block).count() == 0:
+        regular_blocks = [
+            {"name": "Dirt", "type": ItemType.REGULAR, "enabled": True, "prize_chance": 0, "quantity": 0, "health": 1},
+            {"name": "Stone", "type": ItemType.REGULAR, "enabled": True, "prize_chance": 0, "quantity": 0, "health": 3},
+            {"name": "Coal", "type": ItemType.REGULAR, "enabled": True, "prize_chance": 0, "quantity": 0, "health": 5},
+            {"name": "Iron", "type": ItemType.REGULAR, "enabled": True, "prize_chance": 0, "quantity": 0, "health": 7},
+            {"name": "Sand", "type": ItemType.REGULAR, "enabled": True, "prize_chance": 0, "quantity": 0, "health": 2},
+        ]
+
+        prize_blocks = [
+            {"name": "Diamond", "type": ItemType.PRIZE, "enabled": True, "prize_chance": -5, "quantity": 10, "health": 10},
+            {"name": "Emerald", "type": ItemType.PRIZE, "enabled": True, "prize_chance": 0, "quantity": 20, "health": 8},
+            {"name": "Gold", "type": ItemType.PRIZE, "enabled": True, "prize_chance": 5, "quantity": 30, "health": 6},
+            {"name": "Ruby", "type": ItemType.PRIZE, "enabled": True, "prize_chance": 10, "quantity": 5, "health": 12},
+        ]
+        
+        for block_data in regular_blocks + prize_blocks:
+            block = Block(**block_data)
+            db.add(block)
+        
+        db.commit()
+        
+        return {"message": "Database seeded with initial blocks"}
+    
+    return {"message": "Database already has blocks, seeding skipped"}
+
+@router.get("/admin/prizes")
+async def get_all_prizes(
+    claimed: bool = Query(None),
+    student_id: str = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Admin: Get all prizes with optional filters"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access admin endpoints"
+        )
+    
+    query = db.query(Prize).join(User)
+    
+    if claimed is not None:
+        query = query.filter(Prize.claimed == claimed)
+    
+    if student_id is not None:
+        query = query.filter(User.student_id == student_id)
+    
+    prizes = query.order_by(desc(Prize.created_at)).all()
+    
+    result = []
+    for prize in prizes:
+        user = db.query(User).filter(User.id == prize.user_id).first()
+        block = db.query(Block).filter(Block.id == prize.block_id).first()
+        
+        result.append({
+            "id": prize.id,
+            "student_id": user.student_id if user else "Unknown",
+            "block_id": prize.block_id,
+            "block_name": block.name if block else "Unknown",
+            "claimed": prize.claimed,
+            "created_at": prize.created_at.isoformat(),
+            "claimed_at": prize.claimed_at.isoformat() if prize.claimed_at else None
+        })
+    
+    return result
+
+@router.put("/admin/prizes/{prize_id}/claim-status")
+async def admin_update_claim_status(
+    prize_id: int,
+    claimed: bool = Body(..., embed=True),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Admin: Update prize claim status"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access admin endpoints"
+        )
+    
+    prize = db.query(Prize).filter(Prize.id == prize_id).first()
+    if not prize:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Prize with id {prize_id} not found"
+        )
+    
+    was_claimed = prize.claimed
+    prize.claimed = claimed
+    
+    if claimed and not was_claimed:
+        prize.claimed_at = datetime.utcnow()
+    elif not claimed:
+        prize.claimed_at = None
+    
+    db.commit()
+    
+    user = db.query(User).filter(User.id == prize.user_id).first()
+    block = db.query(Block).filter(Block.id == prize.block_id).first()
+    
+    return {
+        "id": prize.id,
+        "student_id": user.student_id if user else "Unknown",
+        "block_name": block.name if block else "Unknown",
+        "claimed": prize.claimed,
+        "claimed_at": prize.claimed_at.isoformat() if prize.claimed_at else None,
+        "message": f"Prize status updated to {'claimed' if claimed else 'unclaimed'}"
     }
