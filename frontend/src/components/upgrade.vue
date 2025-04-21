@@ -42,7 +42,7 @@
 
 <script>
 import { ref, computed, onMounted } from 'vue';
-import { userAPI } from '../services/apiService';
+// import { userAPI } from '../services/apiService';
 
 export default {
   name: 'UpgradeModal',
@@ -67,40 +67,40 @@ export default {
     const loadUserData = async () => {
       loading.value = true;
       
-      try {
-        const response = await userAPI.getStats();
-        shovelLevel.value = response.data.shovel_level;
-        money.value = response.data.money;
-      } catch (error) {
-        console.error('Failed to load user stats:', error);
-        upgradeMessage.value = 'Failed to load user data';
-        upgradeSuccess.value = false;
-      } finally {
-        loading.value = false;
-      }
+      // try {
+      //   const response = await userAPI.getStats();
+      //   shovelLevel.value = response.data.shovel_level;
+      //   money.value = response.data.money;
+      // } catch (error) {
+      //   console.error('Failed to load user stats:', error);
+      //   upgradeMessage.value = 'Failed to load user data';
+      //   upgradeSuccess.value = false;
+      // } finally {
+      //   loading.value = false;
+      // }
     };
     
     const upgradeShovel = async () => {
-      upgrading.value = true;
-      upgradeMessage.value = '';
+      // upgrading.value = true;
+      // upgradeMessage.value = '';
       
-      try {
-        const response = await userAPI.upgradeShovel();
+      // try {
+      //   const response = await userAPI.upgradeShovel();
         
-        // Update local data with response
-        shovelLevel.value = response.data.shovel_level;
-        money.value = response.data.money;
+      //   // Update local data with response
+      //   shovelLevel.value = response.data.shovel_level;
+      //   money.value = response.data.money;
         
-        // Show success message
-        upgradeMessage.value = response.data.message || 'Shovel upgraded successfully!';
-        upgradeSuccess.value = true;
-      } catch (error) {
-        console.error('Failed to upgrade shovel:', error);
-        upgradeMessage.value = error.response?.data?.detail || 'Failed to upgrade shovel';
-        upgradeSuccess.value = false;
-      } finally {
-        upgrading.value = false;
-      }
+      //   // Show success message
+      //   upgradeMessage.value = response.data.message || 'Shovel upgraded successfully!';
+      //   upgradeSuccess.value = true;
+      // } catch (error) {
+      //   console.error('Failed to upgrade shovel:', error);
+      //   upgradeMessage.value = error.response?.data?.detail || 'Failed to upgrade shovel';
+      //   upgradeSuccess.value = false;
+      // } finally {
+      //   upgrading.value = false;
+      // }
     };
     
     onMounted(() => {

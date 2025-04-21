@@ -46,7 +46,7 @@ import { useRouter } from 'vue-router';
 import { getToken, isAuthenticated } from '../services/authService';
 
 export default {
-  name: 'Backpack',
+  name: 'BackpackModal',
   emits: ['close'],
   
   setup(props, { emit }) {

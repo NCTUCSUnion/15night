@@ -3,3 +3,15 @@ __pycache__
 .env
 
 .DS_Store
+
+# Python
+.venv
+
+# Node.js
+node_modules/
+dist/
+build/
+
+# Docker
+docker-compose
+Dockerfile

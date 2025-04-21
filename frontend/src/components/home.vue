@@ -7,12 +7,18 @@
         <div class="header">
             <h1>15Night Game</h1>
         </div>
+        <div class="user-info">
+            <p>Money: {{ money }}</p>
+            <p>Shovel Level: {{ shovelLevel }}</p>
+        </div>
         <div class="game-container">
             <div class="buttons">
                 <button @click="toggleBackpack">Backpack</button>
                 <button @click="toggleUpgrade">Upgrade</button>
             </div>
         </div>
+        <BackpackModal v-if="showBackpack" @close="toggleBackpack" />
+        <UpgradeModal v-if="showUpgrade" @close="toggleUpgrade" />
     </div>
 </template>
 
@@ -21,14 +27,43 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { getUserInfo, removeToken, isAuthenticated } from '../services/authService';
+import BackpackModal from './backpack.vue';
+import UpgradeModal from './upgrade.vue';
 
 export default {
     name: 'Home',
+    components: {
+        BackpackModal,
+        UpgradeModal
+    },
     setup() {
         const router = useRouter();
         const userInfo = ref(null);
         const tokenExpiry = ref('');
+        const showBackpack = ref(false);
+        const showUpgrade = ref(false);
+        const shovelLevel = ref(1);
+        const money = ref(0);
         
+        const fetchUserStats = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await axios.get('/api/user/stats', {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                shovelLevel.value = response.data.shovel_level;
+                money.value = response.data.money;
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+                if (error.response?.status === 401) {
+                    removeToken();
+                    router.push('/login');
+                }
+            }
+        };
+
         onMounted(async () => {
             // Redirect if not authenticated
             if (!isAuthenticated()) {
@@ -44,26 +79,16 @@ export default {
                 const expiryDate = new Date(user.exp * 1000);
                 tokenExpiry.value = expiryDate.toLocaleString();
             }
-            try {
-                // Fetch user data from backend
-                const response = await axios.get('/api/user/stats');
-                console.log('User stats:', response.data);
-                // You can update userInfo with additional data from response if needed
-            } catch (error) {
-                console.error('Error fetching user data:', error);
-                if (error.response?.status === 401) {
-                    removeToken();
-                    router.push('/login');
-                }
-            }
+            // Fetch user stats
+            await fetchUserStats();
         });
         
         const toggleBackpack = () => {
-            alert('Backpack feature coming soon!');
+            showBackpack.value = !showBackpack.value;
         };
         
         const toggleUpgrade = () => {
-            alert('Upgrade feature coming soon!');
+            showUpgrade.value = !showUpgrade.value;
         };
         
         const logout = () => {
@@ -77,8 +102,13 @@ export default {
             toggleBackpack, 
             toggleUpgrade,
             logout,
+            fetchUserStats,
             userInfo,
-            tokenExpiry
+            tokenExpiry,
+            showBackpack,
+            showUpgrade,
+            shovelLevel, // Add shovelLevel to return object
+            money       // Add money to return object
         };
     },
 };
@@ -124,6 +154,7 @@ export default {
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     text-align: center;
+    color: #213547; /* Explicitly set text color */
 }
 
 .logout-btn {

@@ -1,109 +1,71 @@
 import axios from 'axios';
-import { getToken } from './authService';
-import router from '../router';
+
+// Base URL from environment
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 /**
- * API service to handle authenticated backend requests
+ * Makes API requests with optional authentication
+ * @param {string} endpoint - API endpoint
+ * @param {Object} options - Request options
+ * @param {boolean} options.auth - Whether authentication is required (default: true)
+ * @returns {Promise} - API response
  */
-
-// Create a custom instance of axios with default config
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '',
-  headers: {
-    'Content-Type': 'application/json',
-  }
-});
-
-// Request interceptor to add auth token
-api.interceptors.request.use(config => {
-  const token = getToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Response interceptor to handle auth errors
-api.interceptors.response.use(
-  response => response,
-  error => {
-    // Handle 401 Unauthorized errors
-    if (error.response && error.response.status === 401) {
-      console.log('API: Unauthorized request detected');
-      router.push('/login');
+export const apiRequest = async (endpoint, options = {}) => {
+  const { auth = true, ...axiosOptions } = options;
+  
+  // Create request config
+  const config = {
+    ...axiosOptions,
+    headers: {
+      'Content-Type': 'application/json',
+      ...axiosOptions.headers
     }
-    return Promise.reject(error);
+  };
+  
+  // Add auth token if required and available
+  if (auth) {
+    const token = localStorage.getItem('oauth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
-);
-
-// API methods
-export const userAPI = {
-  /**
-   * Get user statistics
-   * @returns {Promise} Promise with user data
-   */
-  getStats: async () => {
-    return api.get('/api/user/stats');
-  },
   
-  /**
-   * Get user backpack contents
-   * @returns {Promise} Promise with backpack items data
-   */
-  getBackpack: async () => {
-    return api.get('/api/user/backpack');
-  },
-  
-  /**
-   * Upgrade user's shovel
-   * @returns {Promise} Promise with upgrade result
-   */
-  upgradeShovel: async () => {
-    return api.post('/api/user/upgrade-shovel');
+  // Make the request
+  try {
+    const response = await axios(endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`, config);
+    return response.data;
+  } catch (error) {
+    if (error.response && error.response.status === 401 && auth) {
+      // Handle unauthorized error (expired token, etc)
+      // You could redirect to login or trigger token refresh here
+    }
+    throw error;
   }
 };
 
-export const blockAPI = {
-  /**
-   * Get available blocks
-   * @returns {Promise} Promise with blocks data
-   */
-  getAvailable: async () => {
-    return api.get('/api/blocks/available');
-  },
+// API method shortcuts
+export const api = {
+  get: (endpoint, options = {}) => apiRequest(endpoint, { 
+    method: 'GET', 
+    ...options 
+  }),
   
-  /**
-   * Start mining a block
-   * @param {number} blockId - The ID of the block to mine
-   * @returns {Promise} Promise with mining start data
-   */
-  startMining: async (blockId) => {
-    return api.post(`/api/blocks/${blockId}/start`);
-  },
+  post: (endpoint, data, options = {}) => apiRequest(endpoint, { 
+    method: 'POST', 
+    data, 
+    ...options 
+  }),
   
-  /**
-   * Complete mining operation
-   * @param {number} blockId - The ID of the block being mined
-   * @returns {Promise} Promise with mining result data
-   */
-  completeMining: async (blockId) => {
-    return api.post(`/api/blocks/${blockId}/complete`);
-  }
+  put: (endpoint, data, options = {}) => apiRequest(endpoint, { 
+    method: 'PUT', 
+    data, 
+    ...options 
+  }),
+  
+  delete: (endpoint, options = {}) => apiRequest(endpoint, { 
+    method: 'DELETE', 
+    ...options 
+  })
 };
 
-export const leaderboardAPI = {
-  /**
-   * Get leaderboard data
-   * @param {number} limit - Maximum number of entries to return
-   * @returns {Promise} Promise with leaderboard data
-   */
-  getLeaderboard: async (limit = 10) => {
-    return api.get(`/api/leaderboard?limit=${limit}`);
-  }
-};
-
-export default {
-  user: userAPI,
-  block: blockAPI,
-  leaderboard: leaderboardAPI
-};
+export default api;
