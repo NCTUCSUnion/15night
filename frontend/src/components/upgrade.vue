@@ -42,69 +42,97 @@
 
 <script>
 import { ref, computed, onMounted } from 'vue';
-// import { userAPI } from '../services/apiService';
+import axios from 'axios';
 
 export default {
   name: 'UpgradeModal',
+  props: {
+    shovelLevel: {
+      type: Number,
+      required: true
+    },
+    money: {
+      type: Number,
+      required: true
+    },
+    fetchUserStats: {
+      type: Function,
+      required: true
+    }
+  },
   emits: ['close'],
   
   setup(props, { emit }) {
-    const shovelLevel = ref(1);
-    const money = ref(0);
+    const shovelLevel = ref(props.shovelLevel);
+    const money = ref(props.money);
     const loading = ref(true);
     const upgrading = ref(false);
     const upgradeMessage = ref('');
     const upgradeSuccess = ref(false);
     
+    // Define upgrade costs for each level
+    const upgrade_cost_list = {
+      1: 100,    // Level 1 to 2 costs 100
+      2: 250,    // Level 2 to 3 costs 250
+      3: 500,    // Level 3 to 4 costs 500
+      4: 1000,   // Level 4 to 5 costs 1000
+      5: 2000,   // Level 5 to 6 costs 2000
+      6: 4000,   // Level 6 to 7 costs 4000
+      7: 8000,   // Level 7 to 8 costs 8000
+      8: 15000,  // Level 8 to 9 costs 15000
+      9: 25000,  // Level 9 to 10 costs 25000
+      10: 50000, // Level 10 to 11 costs 50000
+      // Add more levels as needed
+    };
+    
     const upgradeCost = computed(() => {
-      return shovelLevel.value * 100;
+      // Get cost from the list or use fallback calculation for higher levels
+      return upgrade_cost_list[shovelLevel.value] || shovelLevel.value * 10000;
     });
     
     const close = () => {
       emit('close');
     };
-    
-    const loadUserData = async () => {
-      loading.value = true;
-      
-      // try {
-      //   const response = await userAPI.getStats();
-      //   shovelLevel.value = response.data.shovel_level;
-      //   money.value = response.data.money;
-      // } catch (error) {
-      //   console.error('Failed to load user stats:', error);
-      //   upgradeMessage.value = 'Failed to load user data';
-      //   upgradeSuccess.value = false;
-      // } finally {
-      //   loading.value = false;
-      // }
-    };
-    
+
+    // Function to upgrade the shovel
     const upgradeShovel = async () => {
-      // upgrading.value = true;
-      // upgradeMessage.value = '';
+      if (money.value < upgradeCost.value) {
+        upgradeMessage.value = `Not enough money! You need ${upgradeCost.value - money.value} more.`;
+        upgradeSuccess.value = false;
+        return;
+      }
       
-      // try {
-      //   const response = await userAPI.upgradeShovel();
+      upgrading.value = true;
+      upgradeMessage.value = '';
+      
+      try {
+        const response = await axios.post('/api/user/upgrade-shovel',
+          {}, // Empty request body
+          { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+        );
         
-      //   // Update local data with response
-      //   shovelLevel.value = response.data.shovel_level;
-      //   money.value = response.data.money;
+        money.value = response.data.money;
+        shovelLevel.value = response.data.shovel_level;
         
-      //   // Show success message
-      //   upgradeMessage.value = response.data.message || 'Shovel upgraded successfully!';
-      //   upgradeSuccess.value = true;
-      // } catch (error) {
-      //   console.error('Failed to upgrade shovel:', error);
-      //   upgradeMessage.value = error.response?.data?.detail || 'Failed to upgrade shovel';
-      //   upgradeSuccess.value = false;
-      // } finally {
-      //   upgrading.value = false;
-      // }
+        // Show success message
+        upgradeMessage.value = 'Shovel upgraded successfully!';
+        upgradeSuccess.value = true;
+        
+        // Update parent component data
+        props.fetchUserStats();
+      } catch (error) {
+        // Handle errors
+        upgradeMessage.value = error.response?.data?.message || 'Failed to upgrade shovel. Please try again.';
+        upgradeSuccess.value = false;
+        console.error('Error upgrading shovel:', error);
+      } finally {
+        upgrading.value = false;
+      }
     };
     
     onMounted(() => {
-      loadUserData();
+      loading.value = false;
+      props.fetchUserStats();
     });
     
     return {
