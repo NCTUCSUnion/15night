@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { isAuthenticated, handleTokenFromUrl } from '../services/authService';
-import LoginPage from '../components/login.vue';
-import Home from '../components/home.vue';
+import LoginPage from '../components/Login.vue';
+import Home from '../components/Home.vue';
 
 // Define routes
 const routes = [
