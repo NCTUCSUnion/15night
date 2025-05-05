@@ -37,8 +37,8 @@ jobs:
     #       file: ./frontend/Dockerfile
     #       push: true
     #       tags: |
-    #         ghcr.io/${{ github.repository_owner }}/cs15night:frontend
-    #         ghcr.io/${{ github.repository_owner }}/cs15night:frontend-${{ github.sha }}
+    #         ghcr.io/nctucsunion/cs15night:frontend
+    #         ghcr.io/nctucsunion/cs15night:frontend-${{ github.sha }}
 
       - name: Build and push Backend Docker image
         uses: docker/build-push-action@v4
@@ -47,5 +47,5 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/cs15night:backend
-            ghcr.io/${{ github.repository_owner }}/cs15night:backend-${{ github.sha }}
+            ghcr.io/nctucsunion/cs15night:backend
+            ghcr.io/nctucsunion/cs15night:backend-${{ github.sha }}
