@@ -304,6 +304,7 @@ async def complete_mining(
     started_block_id = mining_data.get("block_id")
     got_prize = mining_data.get("got_prize", False)
     got_garbage = mining_data.get("got_garbage", False)
+    start_timestamp = mining_data.get("timestamp", 0)
     
     if started_block_id != block_id:
         raise HTTPException(
@@ -311,7 +312,14 @@ async def complete_mining(
             detail=f"Block ID mismatch. You started mining block {started_block_id}, not {block_id}"
         )
 
-    if time.time() - mining_data.get("timestamp", 0) > 300:
+    elapsed_time = time.time() - start_timestamp
+    if elapsed_time < 0.3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Mining too fast! Please wait at least 0.3 seconds between start and complete (elapsed: {elapsed_time:.2f}s)"
+        )
+
+    if elapsed_time > 300:
         request.session.pop(f"mining_{current_user.id}", None)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -373,6 +381,81 @@ async def complete_mining(
         "got_garbage": got_garbage,
         "got_prize": got_prize,
         "message": message + f" Earned {money_earned} money."
+    }
+
+@router.post("/blocks/status")
+async def mining_status(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Check if user has an active mining session for the given block"""
+    mining_data = request.session.get(f"mining_{current_user.id}")
+    
+    if not mining_data:
+        return {
+            "mining": False,
+            "message": "No active mining session found"
+        }
+    
+    if time.time() - mining_data.get("timestamp", 0) > 300:
+        request.session.pop(f"mining_{current_user.id}", None)
+        return {
+            "mining": False,
+            "message": "Mining session expired"
+        }
+
+    block_id = mining_data.get("block_id")
+    
+    block = db.query(Block).filter(Block.id == block_id).first()
+    if not block:
+        return {
+            "mining": False,
+            "message": f"Block with id {block_id} not found"
+        }
+    
+    return {
+        "mining": True,
+        "block_id": block.id,
+        "name": block.name,
+        "health": block.health,
+        "got_garbage": mining_data.get("got_garbage", False),
+        "got_prize": mining_data.get("got_prize", False),
+        "prize_info": {
+            "prize_name": block.prize_name if mining_data.get("got_prize", False) else None,
+            "remaining_quantity": block.quantity if mining_data.get("got_prize", False) else None
+        } if mining_data.get("got_prize", False) else None,
+        "start_time": mining_data.get("timestamp")
+    }
+    
+router.post("/blocks/{block_id}/cancel")
+async def cancel_mining(
+    block_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Cancel an active mining session"""
+    mining_data = request.session.get(f"mining_{current_user.id}")
+    
+    if not mining_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active mining session found"
+        )
+    
+    started_block_id = mining_data.get("block_id")
+    if started_block_id != block_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Block ID mismatch. You started mining block {started_block_id}, not {block_id}"
+        )
+    
+    # Clear the mining session
+    request.session.pop(f"mining_{current_user.id}", None)
+    
+    return {
+        "block_id": block_id,
+        "message": "Mining session canceled successfully"
     }
 
 @router.get("/user/stats")
