@@ -2,7 +2,7 @@
     <div class="home">
         <div class="mobile-navbar">
             <div class="student-id">Hello, {{ userInfo?.studentId || 'User' }}</div>
-            <button class="navbar-logout-btn" @click="logout">Logout</button>
+            <button class="logout-btn" @click="logout">Logout</button>
         </div>
         <div class="header">
             <h1>15Night Game</h1>
@@ -11,9 +11,9 @@
             <p>Money: {{ money }}</p>
             <p>Shovel Level: {{ shovelLevel }}</p>
         </div>
-        <BlockGrid 
+        <BlockSelection 
+            :currentSelectedBlockId="selectedBlock?.id"
             @select-block="handleBlockSelection"
-            @start-mining="handleStartMining"
         />
         
         <!-- Mining progress display and button -->
@@ -32,9 +32,10 @@
         </div>
         
         <div class="game-category">
-            <div class="buttons">
+            <div class="category-buttons">
                 <button @click="toggleBackpack">Backpack</button>
                 <button @click="toggleUpgrade">Upgrade</button>
+                <button @click="toggleLeaderBoard">Leaderboard</button>
             </div>
         </div>
         <BackpackModal
@@ -48,6 +49,16 @@
          :shovelLevel="shovelLevel"
          :money="money"
         />
+        <LeaderBoard
+         v-if="showLeaderBoard"
+         @close="toggleLeaderBoard"
+         :currentUserId="userInfo?.studentId"
+        />
+        <GarbageHintPopup
+         v-if="showGarbageHint"
+         @close="showGarbageHint = !showGarbageHint"
+         :message="garbageHintMessage"
+        />
     </div>
 </template>
 
@@ -56,16 +67,22 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { getUserInfo, removeToken, isAuthenticated } from '../services/authService';
-import BackpackModal from './backpack.vue';
-import UpgradeModal from './upgrade.vue';
-import BlockGrid from './BlockGrid.vue';
-
+import BackpackModal from './Backpack.vue';
+import UpgradeModal from './Upgrade.vue';
+import BlockSelection from './BlockSelection.vue';
+import LeaderBoard from './LeaderBoard.vue';
+import GarbageHintPopup from './GarbageHintPopup.vue';
 export default {
     name: 'Home',
     components: {
         BackpackModal,
         UpgradeModal,
-        BlockGrid
+        BlockSelection,
+        LeaderBoard,
+        GarbageHintPopup
+    },
+    created() {
+        axios.defaults.withCredentials = true;
     },
     setup() {
         const router = useRouter();
@@ -73,13 +90,16 @@ export default {
         const tokenExpiry = ref('');
         const showBackpack = ref(false);
         const showUpgrade = ref(false);
+        const showLeaderBoard = ref(false);
         const shovelLevel = ref(1);
         const money = ref(0);
         const selectedBlock = ref(null);
+        const selectedBlockId = ref(null);
         const isMining = ref(false);
         const blockHealth = ref(0);
         const maxBlockHealth = ref(0);
-        
+        const showGarbageHint = ref(false);
+        const garbageHintMessage = ref('');
         // Calculate damage based on shovel level
         const damagePerClick = computed(() => {
             return shovelLevel.value; // 5 damage per shovel level
@@ -93,7 +113,8 @@ export default {
                 const response = await axios.get('/api/user/stats', {
                     headers: {
                         Authorization: `Bearer ${token}`
-                    }
+                    },
+                    withCredentials: true
                 });
                 shovelLevel.value = response.data.shovel_level;
                 money.value = response.data.money;
@@ -103,6 +124,44 @@ export default {
                     removeToken();
                     router.push('/login');
                 }
+            }
+        };
+
+        const checkMiningStatus = async () => {
+            try {
+                // const token = localStorage.getItem('token');
+                // const response = await axios.get('/api/mining/status', {
+                //     headers: {
+                //         Authorization: `Bearer ${token}`
+                //     },
+                //     withCredentials: true
+                // });
+                // isMining.value = response.data.is_mining;
+            } catch (error) {
+                console.error('Error checking mining status:', error);
+            }
+        };
+
+        // Load default block (id = 1) if nothing is selected
+        const loadDefaultBlock = async () => {
+            if (selectedBlock.value) return;
+            
+            try {
+                const token = localStorage.getItem('token');
+                const response = await axios.get('/api/blocks', {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                
+                if (response.data.blocks && response.data.blocks.length > 0) {
+                    // Find block with ID 1 or use first block
+                    const defaultBlock = response.data.blocks.find(b => b.id === 1) || response.data.blocks[0];
+                    selectedBlock.value = defaultBlock;
+                    selectedBlockId.value = defaultBlock.id;
+                }
+            } catch (error) {
+                console.error('Error loading default block:', error);
             }
         };
 
@@ -121,8 +180,12 @@ export default {
                 const expiryDate = new Date(user.exp * 1000);
                 tokenExpiry.value = expiryDate.toLocaleString();
             }
-            // Fetch user stats
             await fetchUserStats();
+            await checkMiningStatus();
+            // If no active mining session and no selected block, load default
+            if (!isMining.value && !selectedBlock.value) {
+                await loadDefaultBlock();
+            }
         });
         
         const toggleBackpack = () => {
@@ -133,6 +196,9 @@ export default {
             showUpgrade.value = !showUpgrade.value;
         };
         
+        const toggleLeaderBoard = () => {
+            showLeaderBoard.value = !showLeaderBoard.value;
+        };
         const logout = () => {
             // Remove the token
             removeToken();
@@ -141,34 +207,61 @@ export default {
         };
         
         // Handle block selection from BlockGrid
-        const handleBlockSelection = (block) => {
-            selectedBlock.value = block;
-            console.log('Selected block:', block.name);
-        };
-        
-        // Handle mining start
-        const handleStartMining = async (block) => {
-            if (isMining.value) return;
-            try {
-                isMining.value = true;
-                console.log(`Mining started on ${block.name}`);
-                // Make API call to start mining
-                const token = localStorage.getItem('token');
-                const response = await axios.post(`/api/blocks/${block.id}/start`, 
-                    {}, 
-                    {
+        const handleBlockSelection = async (block) => {
+            if (isMining.value && selectedBlock.value && selectedBlock.value.id !== block.id) {
+                try {
+                    const token = localStorage.getItem('token');
+                    await axios.post(`/api/blocks/${selectedBlock.value.id}/stop`, {}, {
                         headers: {
                             Authorization: `Bearer ${token}`
                         }
+                    });
+                    isMining.value = false;
+                } catch (error) {
+                    console.error('Error stopping mining:', error);
+                }
+            }
+            selectedBlock.value = block;
+            selectedBlockId.value = block.id;
+            blockHealth.value = block.health;
+            maxBlockHealth.value = block.health;
+            console.log('Selected block:', block.name);
+            handleStartMining();
+        };
+        
+        // Handle mining start
+        const handleStartMining = async () => {
+            if (isMining.value) return;
+            try {
+                isMining.value = true;
+                console.log(`Mining started on ${selectedBlock.value.name}`);
+                
+                const token = localStorage.getItem('token');
+                const response = await axios.post(`/api/blocks/${selectedBlock.value.id}/start`, 
+                    {}, {
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        }
+                    }, {
+                        withCredentials: true
                     }
                 );
+                
+                // Map the API response to match our expected structure
+                const blockData = {
+                    id: response.data.block_id, // Map block_id to id
+                    name: response.data.name,
+                    health: response.data.health,
+                    got_garbage: response.data.got_garbage,
+                    got_prize: response.data.got_prize,
+                    prize_info: response.data.prize_info
+                };
+                
+                selectedBlock.value = blockData;
                 blockHealth.value = response.data.health;
                 maxBlockHealth.value = response.data.health;
-                selectedBlock.value = block;
                 console.log('Block health:', blockHealth.value);
                 console.log('selectedBlock:', selectedBlock.value);
-                // await fetchUserStats();
-                
             } catch (error) {
                 console.error('Mining error:', error);
                 alert('Failed to mine block. Please try again.');
@@ -177,8 +270,9 @@ export default {
             }
         };
         
-        axios.defaults.withCredentials = true;
+        
         // Handle mining click
+        
         const mineBlock = async () => {
             if (!selectedBlock.value || blockHealth.value <= 0) return;
             
@@ -188,16 +282,20 @@ export default {
             // If block health reaches 0, complete mining
             if (blockHealth.value === 0) {
                 try {
-                    isMining.value = true;
+                    isMining.value = false;
                     const token = localStorage.getItem('token');
-                    await axios.post(`/api/blocks/${selectedBlock.value.id}/complete`, 
+                    const response = await axios.post(`/api/blocks/${selectedBlock.value.id}/complete`, 
                         {}, {
                         headers: {
                             Authorization: `Bearer ${token}`
                         },
                         withCredentials: true
                     });
-                    
+                    if(response.data.got_garbage) {
+                        alert('You received garbage!');
+                        showGarbageHint.value = true;
+                        garbageHintMessage.value = `You received garbage!`;
+                    }
                     // Update user stats after successful mining
                     await fetchUserStats();
                     alert(`Successfully mined ${selectedBlock.value.name}!`);
@@ -216,12 +314,14 @@ export default {
         return { 
             toggleBackpack, 
             toggleUpgrade,
+            toggleLeaderBoard,
             logout,
             fetchUserStats,
             userInfo,
             tokenExpiry,
             showBackpack,
             showUpgrade,
+            showLeaderBoard,
             shovelLevel,
             money,
             handleBlockSelection,
@@ -231,7 +331,9 @@ export default {
             blockHealth,
             maxBlockHealth,
             mineBlock,
-            damagePerClick
+            damagePerClick,
+            showGarbageHint,
+            garbageHintMessage
         };
     },
 };
@@ -239,9 +341,11 @@ export default {
 
 <style scoped>
 .home {
-    max-width: 800px;
+    max-width: 100%;
+    width: 100vw;
+    height: 100vh;
     margin: 0 auto;
-    padding: 20px;
+    padding: 15px;
     padding-top: 50px;
 }
 /* Mobile Navbar */
@@ -261,81 +365,78 @@ export default {
 }
 .student-id {
     font-weight: bold;
-    font-size: 16px;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60%;
 }
 
 .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
+    text-align: center;
 }
 
-.game-container {
-    background-color: white;
-    padding: 20px;
+.header h1 {
+    font-size: 24px;
+    margin: 0;
+}
+
+.user-info {
+    display: flex;
+    justify-content: space-around;
+    background-color: #f5f5f5;
     border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    text-align: center;
-    color: #213547; /* Explicitly set text color */
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.user-info p {
+    margin: 0;
+    font-weight: bold;
 }
 
 .logout-btn {
     background-color: #dc3545;
     color: white;
     border: none;
-    padding: 8px 16px;
+    padding: 8px 12px;
     border-radius: 4px;
     cursor: pointer;
+    font-size: 14px;
 }
 .logout-btn:hover {
     background-color: #c82333;
 }
-.buttons {
-    display: flex;
-    gap: 16px;
-    justify-content: center;
-    margin-top: 30px;
+
+/* Game Category buttons */
+.game-category {
+    margin-top: 15px;
 }
-.buttons button {
-    padding: 10px 20px;
+
+.category-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.category-buttons button {
+    padding: 12px 0;
     background-color: #4285f4;
     color: white;
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    font-weight: bold;
 }
-.buttons button:hover {
+
+.category-buttons button:hover {
     background-color: #3367d6;
-}
-@media (max-width: 768px) {
-    .buttons {
-        flex-direction: column;
-        align-items: center;
-    }
-    .buttons button {
-        width: 100%;
-    }
-}
-.debug {
-    background: #d4edda;
-    color: #155724;
-    padding: 5px;
-    margin: 10px 0;
-    border-radius: 4px;
-}
-.user-info {
-    text-align: center;
-    margin: 0 20px;
-}
-.token-expiry {
-    font-size: 0.8em;
-    color: #666;
 }
 
 /* Mining Controls */
 .mining-controls {
-    margin: 20px auto;
+    margin: 15px 0;
     padding: 15px;
     background-color: #f5f5f5;
     border-radius: 8px;
@@ -358,7 +459,8 @@ export default {
 }
 
 .mining-button {
-    padding: 10px 20px;
+    padding: 15px 0;
+    width: 100%;
     background-color: #ff9800;
     color: white;
     border: none;
@@ -366,6 +468,7 @@ export default {
     cursor: pointer;
     font-weight: bold;
     margin-top: 10px;
+    font-size: 16px;
 }
 
 .mining-button:hover {
@@ -375,5 +478,21 @@ export default {
 .mining-button:disabled {
     background-color: #cccccc;
     cursor: not-allowed;
+}
+
+/* Add meta viewport tag to ensure proper scaling */
+@media (max-width: 480px) {
+    .header h1 {
+        font-size: 22px;
+    }
+    
+    .mining-button {
+        padding: 12px 0;
+    }
+    
+    .home {
+        padding: 10px;
+        padding-top: 50px;
+    }
 }
 </style>
