@@ -27,7 +27,7 @@
         <button 
           class="mine-button" 
           @click="emitBlockSelection"
-          >Start Mining</button>
+          >Choose this block!</button>
       </div>
     </div>
   </template>
@@ -39,10 +39,6 @@
   export default {
     name: 'BlockSelection',
     props: {
-      selectedBlockId: {
-        type: Number,
-        default: null
-      },
       selectedBlock: {
         type: Object,
         default: () => null
@@ -54,16 +50,12 @@
       const error = ref(null);
       
       // Local state that mirrors the props
-      const currentSelectedBlockId = ref(props.selectedBlockId);
       const currentSelectedBlock = ref(props.selectedBlock);
-      
-      // Watch for prop changes to update local state
-      watch(() => props.selectedBlockId, (newId) => {
-        currentSelectedBlockId.value = newId;
-      });
+      const currentSelectedBlockId = ref(props.selectedBlock ? props.selectedBlock.id : null);
       
       watch(() => props.selectedBlock, (newBlock) => {
         currentSelectedBlock.value = newBlock;
+        currentSelectedBlockId.value = newBlock ? newBlock.id : null;
       });
       
       // Fetch blocks from API
