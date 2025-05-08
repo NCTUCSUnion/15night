@@ -11,10 +11,6 @@
             <p>Money: {{ money }}</p>
             <p>Shovel Level: {{ shovelLevel }}</p>
         </div>
-        <BlockSelection 
-            :currentSelectedBlockId="selectedBlock?.id"
-            @select-block="handleBlockSelection"
-        />
         
         <!-- Mining progress display and button -->
         <div v-if="selectedBlock && blockHealth > 0" class="mining-controls">
@@ -30,14 +26,21 @@
                 Mine Block
             </button>
         </div>
-        
         <div class="game-category">
             <div class="category-buttons">
+                <button @click="toggleBlockSelection">Select Block</button>
                 <button @click="toggleBackpack">Backpack</button>
                 <button @click="toggleUpgrade">Upgrade</button>
                 <button @click="toggleLeaderBoard">Leaderboard</button>
+                <button @click="togglePrizePack">Prize Pack</button>
             </div>
         </div>
+        <BlockSelection 
+            v-if="showBlockSelection"
+            :currentSelectedBlock="selectedBlock"
+            @select-block="handleBlockSelection"
+            @close="toggleBlockSelection"
+        />
         <BackpackModal
         v-if="showBackpack"
         @close="toggleBackpack"
@@ -59,6 +62,10 @@
          @close="showGarbageHint = !showGarbageHint"
          :message="garbageHintMessage"
         />
+        <PrizePack
+         v-if="showPrizePack"
+         @close="togglePrizePack"
+        />
     </div>
 </template>
 
@@ -72,6 +79,7 @@ import UpgradeModal from './Upgrade.vue';
 import BlockSelection from './BlockSelection.vue';
 import LeaderBoard from './LeaderBoard.vue';
 import GarbageHintPopup from './GarbageHintPopup.vue';
+import PrizePack from './PrizePack.vue';
 export default {
     name: 'Home',
     components: {
@@ -79,7 +87,8 @@ export default {
         UpgradeModal,
         BlockSelection,
         LeaderBoard,
-        GarbageHintPopup
+        GarbageHintPopup,
+        PrizePack
     },
     created() {
         axios.defaults.withCredentials = true;
@@ -88,9 +97,12 @@ export default {
         const router = useRouter();
         const userInfo = ref(null);
         const tokenExpiry = ref('');
+        const showBlockSelection = ref(false);
         const showBackpack = ref(false);
         const showUpgrade = ref(false);
         const showLeaderBoard = ref(false);
+        const showGarbageHint = ref(false);
+        const showPrizePack = ref(false);
         const shovelLevel = ref(1);
         const money = ref(0);
         const selectedBlock = ref(null);
@@ -98,7 +110,6 @@ export default {
         const isMining = ref(false);
         const blockHealth = ref(0);
         const maxBlockHealth = ref(0);
-        const showGarbageHint = ref(false);
         const garbageHintMessage = ref('');
         // Calculate damage based on shovel level
         const damagePerClick = computed(() => {
@@ -127,16 +138,16 @@ export default {
             }
         };
 
-        const checkMiningStatus = async () => {
+        const syncMiningStatus = async () => {
             try {
-                // const token = localStorage.getItem('token');
-                // const response = await axios.get('/api/mining/status', {
-                //     headers: {
-                //         Authorization: `Bearer ${token}`
-                //     },
-                //     withCredentials: true
-                // });
-                // isMining.value = response.data.is_mining;
+                const token = localStorage.getItem('token');
+                const response = await axios.post('/api/blocks/status', {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    },
+                    withCredentials: true
+                });
+                isMining.value = response.data.mining;
             } catch (error) {
                 console.error('Error checking mining status:', error);
             }
@@ -144,8 +155,6 @@ export default {
 
         // Load default block (id = 1) if nothing is selected
         const loadDefaultBlock = async () => {
-            if (selectedBlock.value) return;
-            
             try {
                 const token = localStorage.getItem('token');
                 const response = await axios.get('/api/blocks', {
@@ -159,7 +168,9 @@ export default {
                     const defaultBlock = response.data.blocks.find(b => b.id === 1) || response.data.blocks[0];
                     selectedBlock.value = defaultBlock;
                     selectedBlockId.value = defaultBlock.id;
+                    handleStartMining();
                 }
+                console.log('Default block loaded:', selectedBlock.value);
             } catch (error) {
                 console.error('Error loading default block:', error);
             }
@@ -171,7 +182,6 @@ export default {
                 router.push('/login');
                 return;
             }
-            
             // Get user info from token
             const user = getUserInfo();
             userInfo.value = user;
@@ -181,7 +191,7 @@ export default {
                 tokenExpiry.value = expiryDate.toLocaleString();
             }
             await fetchUserStats();
-            await checkMiningStatus();
+            await syncMiningStatus();
             // If no active mining session and no selected block, load default
             if (!isMining.value && !selectedBlock.value) {
                 await loadDefaultBlock();
@@ -199,6 +209,15 @@ export default {
         const toggleLeaderBoard = () => {
             showLeaderBoard.value = !showLeaderBoard.value;
         };
+
+        const toggleBlockSelection = () => {
+            showBlockSelection.value = !showBlockSelection.value;
+        };
+
+        const togglePrizePack = () => {
+            showPrizePack.value = !showPrizePack.value;
+        };
+
         const logout = () => {
             // Remove the token
             removeToken();
@@ -208,10 +227,14 @@ export default {
         
         // Handle block selection from BlockGrid
         const handleBlockSelection = async (block) => {
+            // If a block is already selected, stop mining on it
+            console.log('Block selected:', block.id);
+            console.log('Current Block selected:', selectedBlock.value?.id);
+            console.log('isMining:', isMining.value);
             if (isMining.value && selectedBlock.value && selectedBlock.value.id !== block.id) {
                 try {
                     const token = localStorage.getItem('token');
-                    await axios.post(`/api/blocks/${selectedBlock.value.id}/stop`, {}, {
+                    await axios.post(`/api/blocks/${selectedBlock.value.id}/cancel`, {}, {
                         headers: {
                             Authorization: `Bearer ${token}`
                         }
@@ -265,8 +288,6 @@ export default {
             } catch (error) {
                 console.error('Mining error:', error);
                 alert('Failed to mine block. Please try again.');
-            } finally {
-                isMining.value = false;
             }
         };
         
@@ -304,24 +325,32 @@ export default {
                     selectedBlock.value = null;
                 } catch (error) {
                     console.error('Error completing mining:', error);
-                    alert('Failed to complete mining. Please try again.');
+                    if (error.response?.status === 400 && error.response?.data?.message?.includes('Mining too fast')) {
+                        alert('You are mining too fast! Please slow down.');
+                    } else{
+                        alert('Failed to complete mining. Please try again.');
+                    }
                 } finally {
                     isMining.value = false;
                 }
             }
         };
         
-        return { 
+        return {
+            toggleBlockSelection,
             toggleBackpack, 
             toggleUpgrade,
             toggleLeaderBoard,
+            togglePrizePack,
             logout,
             fetchUserStats,
             userInfo,
             tokenExpiry,
+            showBlockSelection,
             showBackpack,
             showUpgrade,
             showLeaderBoard,
+            showPrizePack,
             shovelLevel,
             money,
             handleBlockSelection,
