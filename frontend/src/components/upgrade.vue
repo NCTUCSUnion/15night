@@ -73,21 +73,15 @@ export default {
     // Define upgrade costs for each level
     const upgrade_cost_list = {
       1: 100,    // Level 1 to 2 costs 100
-      2: 250,    // Level 2 to 3 costs 250
-      3: 500,    // Level 3 to 4 costs 500
-      4: 1000,   // Level 4 to 5 costs 1000
-      5: 2000,   // Level 5 to 6 costs 2000
-      6: 4000,   // Level 6 to 7 costs 4000
-      7: 8000,   // Level 7 to 8 costs 8000
-      8: 15000,  // Level 8 to 9 costs 15000
-      9: 25000,  // Level 9 to 10 costs 25000
-      10: 50000, // Level 10 to 11 costs 50000
-      // Add more levels as needed
+      2: 200,    // Level 2 to 3 costs 250
+      3: 300,    // Level 3 to 4 costs 500
+      4: 400,   // Level 4 to 5 costs 1000
+      5: 500,   // Level 5 to 6 costs 2000
     };
     
     const upgradeCost = computed(() => {
       // Get cost from the list or use fallback calculation for higher levels
-      return upgrade_cost_list[shovelLevel.value] || shovelLevel.value * 10000;
+      return shovelLevel.value * 100;
     });
     
     const close = () => {
