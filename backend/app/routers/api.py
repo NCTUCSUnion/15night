@@ -428,7 +428,7 @@ async def mining_status(
         "start_time": mining_data.get("timestamp")
     }
     
-router.post("/blocks/{block_id}/cancel")
+@router.post("/blocks/{block_id}/cancel")
 async def cancel_mining(
     block_id: int,
     request: Request,
