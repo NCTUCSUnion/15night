@@ -38,7 +38,7 @@ export default {
     // OAuth login - redirects to the backend OAuth endpoint
     const loginWithOAuth = () => {
       isLoading.value = true;
-      window.location.href = 'http://localhost:8000/api/oauth/login';
+      window.location.href = 'http://localhost:8321/api/oauth/login';
     };
     
     // Mock login for development
