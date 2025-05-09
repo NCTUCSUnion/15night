@@ -10,29 +10,29 @@
             <div class="garbage-grid">
                 <div class="garbage-row">
                     <div class="garbage-card" @click="checkAnswer(1)">
-                        <img src="../assets/garbage/icon/1.jpg" alt="Trash" />
+                        <img src="@/assets/garbage/icon/1.jpg" alt="Trash" />
                         <p>一般垃圾 (Trash)</p>
                     </div>
                     <div class="garbage-card" @click="checkAnswer(2)">
-                        <img src="../assets/garbage/icon/2.jpg" alt="Plastic" />
+                        <img src="@/assets/garbage/icon/2.jpg" alt="Plastic" />
                         <p>塑膠類 (Plastic)</p>
                     </div>
                     <div class="garbage-card" @click="checkAnswer(3)">
-                        <img src="../assets/garbage/icon/3.jpg" alt="Paper" />
+                        <img src="@/assets/garbage/icon/3.jpg" alt="Paper" />
                         <p>紙類 (Paper)</p>
                     </div>
                 </div>
                 <div class="garbage-row">
                     <div class="garbage-card" @click="checkAnswer(4)">
-                        <img src="../assets/garbage/icon/4.jpg" alt="Metal" />
+                        <img src="@/assets/garbage/icon/4.jpg" alt="Metal" />
                         <p>金屬類 (Metal)</p>
                     </div>
                     <div class="garbage-card" @click="checkAnswer(5)">
-                        <img src="../assets/garbage/icon/5.jpg" alt="Glass" />
+                        <img src="@/assets/garbage/icon/5.jpg" alt="Glass" />
                         <p>玻璃類 (Glass)</p>
                     </div>
                     <div class="garbage-card" @click="checkAnswer(6)">
-                        <img src="../assets/garbage/icon/6.jpg" alt="Food Waste" />
+                        <img src="@/assets/garbage/icon/6.jpg" alt="Food Waste" />
                         <p>廚餘 (Food Waste)</p>
                     </div>
                 </div>
@@ -80,7 +80,7 @@ export default {
             const folderName = garbageTypeFolders[garbageType.value];
             
             // Set image path using public folder
-            garbageImage.value = `/garbage/${folderName}/${randomImageNumber}.jpg`;
+            garbageImage.value = `src/assets/garbage/${folderName}/${randomImageNumber}.jpg`;
             
             console.log(`Garbage Type: ${garbageType.value}, Image Path: ${garbageImage.value}`);
         });
