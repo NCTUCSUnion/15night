@@ -256,11 +256,9 @@ async def start_mining(
         got_garbage = True
     else:
         if block.enabled:
-            base_prize_chance = block.prize_chance
-            shovel_bonus = (current_user.shovel_level - 1) * 0.5
-            effective_prize_chance = min(base_prize_chance + shovel_bonus, 30)
+            prize_chance = block.prize_chance
             
-            if random.randint(1, 10000) <= effective_prize_chance and block.quantity > 0:
+            if random.randint(1, 10000) <= prize_chance and block.quantity > 0:
                 got_prize = True
                 block.quantity -= 1
                 db.commit()
@@ -849,15 +847,60 @@ async def seed_blocks(current_user: User = Depends(get_current_user), db: Sessio
     
     if db.query(Block).count() == 0:
         blocks = [
-            {"name": "Dirt", "enabled": False, "prize_chance": 10, "garbage_chance": 20, "prize_name": None, "quantity": 0, "health": 1},
-            {"name": "Stone", "enabled": False, "prize_chance": 10, "garbage_chance": 15, "prize_name": None, "quantity": 0, "health": 3},
-            {"name": "Coal", "enabled": False, "prize_chance": 15, "garbage_chance": 10, "prize_name": None, "quantity": 0, "health": 5},
-            {"name": "Iron", "enabled": False, "prize_chance": 20, "garbage_chance": 5, "prize_name": None, "quantity": 0, "health": 7},
-            {"name": "Sand", "enabled": False, "prize_chance": 10, "garbage_chance": 30, "prize_name": None, "quantity": 0, "health": 2},
-            {"name": "Diamond", "enabled": False, "prize_chance": 5, "garbage_chance": 0, "prize_name": "Diamond Prize", "quantity": 10, "health": 10},
-            {"name": "Emerald", "enabled": False, "prize_chance": 10, "garbage_chance": 0, "prize_name": "Emerald Prize", "quantity": 20, "health": 8},
-            {"name": "Gold", "enabled": False, "prize_chance": 15, "garbage_chance": 0, "prize_name": "Gold Prize", "quantity": 30, "health": 6},
-            {"name": "Ruby", "enabled": False, "prize_chance": 20, "garbage_chance": 0, "prize_name": "Ruby Prize", "quantity": 5, "health": 12},
+            {
+                "name": "Dirt",
+                "enabled": False,
+                "prize_chance": 10,
+                "garbage_chance": 10,
+                "prize_name": "米庫早午食堂 折價券",
+                "quantity": 10,
+                "health": 60
+            },
+            {
+                "name": "Stone",
+                "enabled": False,
+                "prize_chance": 10,
+                "garbage_chance": 10,
+                "prize_name": "lala kitchen 折價券",
+                "quantity": 1,
+                "health": 600
+            },
+            {
+                "name": "Coal",
+                "enabled": False,
+                "prize_chance": 10,
+                "garbage_chance": 10,
+                "prize_name": "escapeholic 單人遊玩券",
+                "quantity": 1,
+                "health": 600
+            },
+            {
+                "name": "Iron",
+                "enabled": False,
+                "prize_chance": 10,
+                "garbage_chance": 10,
+                "prize_name": "跳動格子單人免費券",
+                "quantity": 1,
+                "health": 600
+            },
+            {
+                "name": "Gold",
+                "enabled": False,
+                "prize_chance": 10,
+                "garbage_chance": 10,
+                "prize_name": "金色三麥 啤酒招待券",
+                "quantity": 2,
+                "health": 300
+            },
+            {
+                "name": "Diamond",
+                "enabled": False,
+                "prize_chance": 10,
+                "garbage_chance": 10,
+                "prize_name": "鉄燒餃子 百元折價券",
+                "quantity": 10,
+                "health": 60
+            }
         ]
         
         for block_data in blocks:
@@ -865,7 +908,6 @@ async def seed_blocks(current_user: User = Depends(get_current_user), db: Sessio
             db.add(block)
         
         db.commit()
-        
         return {"message": "Database seeded with initial blocks"}
     
     return {"message": "Database already has blocks, seeding skipped"}
