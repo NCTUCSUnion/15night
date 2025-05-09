@@ -525,6 +525,7 @@ async def get_user_prizes(current_user: User = Depends(get_current_user), db: Se
                 "id": prize.id,
                 "block_id": block.id,
                 "name": block.name,
+                "prize_name": block.prize_name,
                 "claimed": prize.claimed,
                 "created_at": prize.created_at.isoformat(),
                 "claimed_at": prize.claimed_at.isoformat() if prize.claimed_at else None
