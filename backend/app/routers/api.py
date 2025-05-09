@@ -33,7 +33,7 @@ def save_user_to_db(student_id: str, email: str, db: Session = Depends(get_db)):
     if (existing_user):
         return existing_user
     
-    admin_ids = ["admin", "112550013"]
+    admin_ids = ["admin", "112550013", "112550024", "112550127", "111550085", "111550160"]
     
     new_user = User(
         student_id=student_id,
