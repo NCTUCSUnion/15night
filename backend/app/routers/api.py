@@ -254,7 +254,6 @@ async def start_mining(
     if not block:
         raise HTTPException(status_code=404, detail=f"Block with id {block_id} not found")
     
-    original_block = block
     got_garbage = False
     got_prize = False
 
@@ -262,12 +261,13 @@ async def start_mining(
         got_garbage = True
     else:
         if block.enabled:
-            prize_chance = block.prize_chance
-            
-            if random.randint(1, 10000) <= prize_chance and block.quantity > 0:
-                got_prize = True
-                block.quantity -= 1
-                db.commit()
+            user_prize_count = db.query(Prize).filter(Prize.user_id == current_user.id).count()
+            if user_prize_count < 3:
+                prize_chance = block.prize_chance
+                if random.randint(1, 10000) <= prize_chance and block.quantity > 0:
+                    got_prize = True
+                    block.quantity -= 1
+                    db.commit()
     
     request.session[f"mining_{current_user.id}"] = {
         "block_id": block.id,
