@@ -173,34 +173,74 @@ export default {
             try {
                 const token = localStorage.getItem('token');
                 const response = await axios.post('/api/blocks/status', {
+                    // It's good practice to include headers if your other POST requests do,
+                    // though your original snippet for this call omitted them.
+                    // Assuming it should be consistent:
                     headers: {
                         Authorization: `Bearer ${token}`
                     },
                     withCredentials: true
                 });
-                isMining.value = response.data.mining;
-                if(isMining.value) {
+
+                if (response.data.mining) {
+                    isMining.value = true;
                     selectedBlockId.value = response.data.block_id;
-                    selectedBlock.value = Blocks.value.find(b => b.id === selectedBlockId.value) || Blocks.value[0];
+
+                    // Populate selectedBlock with data from the status response
+                    // This ensures the UI has the correct information for the ongoing session
+                    selectedBlock.value = {
+                        id: response.data.block_id,
+                        name: response.data.name,
+                        health: response.data.health, // This is likely the block's max health
+                        got_garbage: response.data.got_garbage,
+                        got_prize: response.data.got_prize,
+                        prize_info: response.data.prize_info
+                        // If other static block properties are needed on selectedBlock.value,
+                        // you might want to merge with data from Blocks.value:
+                        // const fullBlockDetails = Blocks.value.find(b => b.id === response.data.block_id);
+                        // if (fullBlockDetails) {
+                        //   selectedBlock.value = { ...fullBlockDetails, ...selectedBlock.value };
+                        // }
+                    };
+                    
+                    // Set current and max health. Based on current logic elsewhere,
+                    // health from /status (and /start) seems to be the block's original/max health.
+                    blockHealth.value = response.data.health;
+                    maxBlockHealth.value = response.data.health;
+
+                    console.log('Mining session restored from /api/blocks/status:', selectedBlock.value);
+                    // DO NOT set isMining.value = false;
+                    // DO NOT call handleStartMining();
+                } else {
                     isMining.value = false;
-                    handleStartMining();
+                    // Optionally, you might want to clear selectedBlock if no session is active,
+                    // though loadDefaultBlock would handle setting a new one if needed.
+                    // selectedBlock.value = null;
+                    // blockHealth.value = 0;
+                    // maxBlockHealth.value = 0;
                 }
             } catch (error) {
                 console.error('Error checking mining status:', error);
+                isMining.value = false; // Assume not mining on error
             }
         };
 
-        // Load default block (id = 1) if nothing is selected
+        // Minor correction in loadDefaultBlock for a typo
         const loadDefaultBlock = async () => {
-            Blocks.value = await fetchBlocks();
+            // Blocks.value should already be fetched by onMounted before this is typically called.
+            // If it can be called in other contexts, ensure Blocks.value is populated.
+            // Blocks.value = await fetchBlocks(); // This might be redundant if onMounted always runs first.
             if (Blocks.value && Blocks.value.length > 0) {
-                // Find block with ID 1 or use first block
-                selectedBlockId.value = selectedBlockId.value ? selectedBlockId.value : 1;
-                if(!selectedBlock.value) {
-                    const defaultBlock = Blocks.value.find(b => b.id === selectedBlockId.values) || Blocks.value[0];
+                // Ensure a block is selected to start mining on
+                if (!selectedBlock.value) { // Only set a default if no block is selected (e.g. by syncMiningStatus)
+                    const defaultBlockIdToLoad = 1; // Or some other logic for default
+                    const defaultBlock = Blocks.value.find(b => b.id === defaultBlockIdToLoad) || Blocks.value[0];
                     selectedBlock.value = defaultBlock;
                 }
-                handleStartMining();
+                selectedBlockId.value = selectedBlock.value.id; // Ensure selectedBlockId is also in sync
+
+                // blockHealth and maxBlockHealth will be set by handleStartMining
+                handleStartMining(); // This is correct here, to initiate mining on the default block
             }
             else {
                 console.error('No blocks available to load as default.');
