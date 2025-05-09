@@ -14,10 +14,10 @@ export default defineConfig({
     historyApiFallback: true,
     proxy: {
       // Forward API requests to your backend during development
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true
-      }
+      // '/api': {
+      //   target: process.env.VITE_API_BASE_URL,
+      //   changeOrigin: true
+      // }
     }
   }
 })

@@ -38,30 +38,28 @@ export default {
     // OAuth login - redirects to the backend OAuth endpoint
     const loginWithOAuth = () => {
       isLoading.value = true;
-      window.location.href = 'http://localhost:8000/api/oauth/login';
+      window.location.href = import.meta.env.VITE_API_BASE_URL + '/api/oauth/login';
+      const redirectUri = encodeURIComponent(window.location.href);
+      console.log(`Redirecting to OAuth login: ${import.meta.env.VITE_API_BASE_URL}/api/oauth/login?redirect_uri=${redirectUri}`);
     };
     
     // Mock login for development
     const loginWithMock = async () => {
       isLoading.value = true;
-      
       try {
         // Use URLSearchParams to properly encode form data
         const params = new URLSearchParams();
         params.append('username', 'admin');
-        params.append('password', 'password');
-        
+        params.append('password', 'password');        
         // Make API request for token
         const response = await axios.post('/api/token', params, {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
           }
         });
-        
         if (response.data && response.data.access_token) {
           setToken(response.data.access_token);
           loginSuccess.value = true;
-          
           setTimeout(() => {
             router.push('/');
           }, 1000);
@@ -78,14 +76,13 @@ export default {
     
     // Check for development environment to show mock login
     const checkDevEnvironment = async () => {
-      if (import.meta.env.DEV || window.location.hostname === 'localhost') {
+      if (import.meta.env.DEV) {
         showDevLogin.value = true;
       }
     };
     
     onMounted(() => {
       console.log('Login component mounted, checking for token in URL');
-      
       // Check if we have a token in the URL (OAuth callback)
       if (handleTokenFromUrl()) {
         loginSuccess.value = true;
@@ -94,7 +91,6 @@ export default {
           router.push('/');
         }, 1000);
       }
-      
       checkDevEnvironment();
     });
     
