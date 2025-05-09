@@ -41,14 +41,18 @@ import axios from 'axios';
 
 export default {
     name: 'LeaderBoard',
-    
     emits: ['close'],
-    
+    props: {
+        studentId: {
+            type: String,
+            required: true
+        }
+    },
     setup(props, { emit }) {
         const leaderboardData = ref([]);
         const loading = ref(true);
         const error = ref(null);
-        const currentUserId = ref(null); // This would come from your auth system
+        const currentUserId = ref(props.studentId); // This would come from your auth system
 
         const close = () => {
             emit('close');
@@ -81,8 +85,6 @@ export default {
 
         onMounted(() => {
             fetchLeaderboardData();
-            // You could set the current user ID here from your auth system
-            // currentUserId.value = yourAuthSystem.getCurrentUser().id;
         });
 
         return {

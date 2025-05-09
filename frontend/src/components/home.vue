@@ -1,5 +1,8 @@
 <template>
     <div class="home">
+        <transition name="fade" mode="out-in">
+            <div v-if="showToast" class="toast">{{ ToastMessage || 'Block selected!' }}</div>
+        </transition>
         <div class="mobile-navbar">
             <div class="student-id">Hello, {{ userInfo?.studentId || 'User' }}</div>
             <button class="logout-btn" @click="logout">Logout</button>
@@ -21,7 +24,7 @@
             <button 
                 class="mining-button" 
                 @click="mineBlock" 
-                :disabled="!selectedBlock || isMining"
+                :disabled="!selectedBlock || !isMining"
             >
                 Mine Block
             </button>
@@ -55,7 +58,7 @@
         <LeaderBoard
          v-if="showLeaderBoard"
          @close="toggleLeaderBoard"
-         :currentUserId="userInfo?.studentId"
+         :studentId="userInfo?.studentId"
         />
         <GarbageHintPopup
          v-if="showGarbageHint"
@@ -65,6 +68,11 @@
         <PrizePack
          v-if="showPrizePack"
          @close="togglePrizePack"
+        />
+        <WarningModal
+         v-if="showWarning"
+         @close="toggleWarning"
+         :message="WarningMessage"
         />
     </div>
 </template>
@@ -80,6 +88,7 @@ import BlockSelection from './BlockSelection.vue';
 import LeaderBoard from './LeaderBoard.vue';
 import GarbageHintPopup from './GarbageHintPopup.vue';
 import PrizePack from './PrizePack.vue';
+import WarningModal from './WarningModal.vue';
 export default {
     name: 'Home',
     components: {
@@ -88,7 +97,8 @@ export default {
         BlockSelection,
         LeaderBoard,
         GarbageHintPopup,
-        PrizePack
+        PrizePack,
+        WarningModal
     },
     created() {
         axios.defaults.withCredentials = true;
@@ -111,11 +121,32 @@ export default {
         const blockHealth = ref(0);
         const maxBlockHealth = ref(0);
         const garbageHintMessage = ref('');
+        const showToast = ref(false);
+        const ToastMessage = ref('');
+        const WarningMessage = ref('');
+        const showWarning = ref(false);
+        const lastClickTime = ref(0);
+        const CLICK_COOLDOWN = 500; // 500ms cooldown between clicks
+
         // Calculate damage based on shovel level
         const damagePerClick = computed(() => {
             return shovelLevel.value; // 5 damage per shovel level
         });
-
+        const Blocks = ref([]);
+        const fetchBlocks = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await axios.get('/api/blocks', {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    },
+                    withCredentials: true
+                });
+                return response.data.blocks;
+            } catch (error) {
+                console.error('Error fetching blocks:', error);
+            }
+        };
         // Function to fetch user stats from the server
         // This function will be called when the user clicks the "Upgrade" button
         const fetchUserStats = async () => {
@@ -148,6 +179,12 @@ export default {
                     withCredentials: true
                 });
                 isMining.value = response.data.mining;
+                if(isMining.value) {
+                    selectedBlockId.value = response.data.block_id;
+                    selectedBlock.value = Blocks.value.find(b => b.id === selectedBlockId.value) || Blocks.value[0];
+                    isMining.value = false;
+                    handleStartMining();
+                }
             } catch (error) {
                 console.error('Error checking mining status:', error);
             }
@@ -155,25 +192,20 @@ export default {
 
         // Load default block (id = 1) if nothing is selected
         const loadDefaultBlock = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await axios.get('/api/blocks', {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                });
-                
-                if (response.data.blocks && response.data.blocks.length > 0) {
-                    // Find block with ID 1 or use first block
-                    const defaultBlock = response.data.blocks.find(b => b.id === 1) || response.data.blocks[0];
+            Blocks.value = await fetchBlocks();
+            if (Blocks.value && Blocks.value.length > 0) {
+                // Find block with ID 1 or use first block
+                selectedBlockId.value = selectedBlockId.value ? selectedBlockId.value : 1;
+                if(!selectedBlock.value) {
+                    const defaultBlock = Blocks.value.find(b => b.id === selectedBlockId.values) || Blocks.value[0];
                     selectedBlock.value = defaultBlock;
-                    selectedBlockId.value = defaultBlock.id;
-                    handleStartMining();
                 }
-                console.log('Default block loaded:', selectedBlock.value);
-            } catch (error) {
-                console.error('Error loading default block:', error);
+                handleStartMining();
             }
+            else {
+                console.error('No blocks available to load as default.');
+            }
+            console.log('Default block loaded:', selectedBlock.value);
         };
 
         onMounted(async () => {
@@ -191,7 +223,11 @@ export default {
                 tokenExpiry.value = expiryDate.toLocaleString();
             }
             await fetchUserStats();
+            
+            Blocks.value = await fetchBlocks();
             await syncMiningStatus();
+            // show isMining 
+            console.log('isMining:', isMining.value);
             // If no active mining session and no selected block, load default
             if (!isMining.value && !selectedBlock.value) {
                 await loadDefaultBlock();
@@ -216,6 +252,17 @@ export default {
 
         const togglePrizePack = () => {
             showPrizePack.value = !showPrizePack.value;
+        };
+
+        const toggleshowToast = () => {
+            showToast.value = true;
+            setTimeout(() => {
+                showToast.value = false;
+            }, 500);
+        };
+
+        const toggleWarning = () => {
+            showWarning.value = !showWarning.value;
         };
 
         const logout = () => {
@@ -292,10 +339,20 @@ export default {
         };
         
         
-        // Handle mining click
-        
+        // Handle mining click with rate limiting
         const mineBlock = async () => {
             if (!selectedBlock.value || blockHealth.value <= 0) return;
+            
+            // Check if clicking too fast
+            const currentTime = Date.now();
+            if (currentTime - lastClickTime.value < CLICK_COOLDOWN) {
+                WarningMessage.value = "You are mining too fast! Please slow down.";
+                showWarning.value = true;
+                return;
+            }
+            
+            // Update last click time
+            lastClickTime.value = currentTime;
             
             // Decrease block health based on shovel level
             blockHealth.value = Math.max(0, blockHealth.value - damagePerClick.value);
@@ -313,44 +370,50 @@ export default {
                         withCredentials: true
                     });
                     if(response.data.got_garbage) {
-                        alert('You received garbage!');
                         showGarbageHint.value = true;
                         garbageHintMessage.value = `You received garbage!`;
                     }
                     // Update user stats after successful mining
                     await fetchUserStats();
-                    alert(`Successfully mined ${selectedBlock.value.name}!`);
-                    
-                    // Reset mining state
-                    selectedBlock.value = null;
+                    toggleshowToast();
+                    ToastMessage.value = `You earn ${response.data.money_earned} money!`;
+                    console.log('Toast message:', ToastMessage.value);
                 } catch (error) {
                     console.error('Error completing mining:', error);
                     if (error.response?.status === 400 && error.response?.data?.message?.includes('Mining too fast')) {
-                        alert('You are mining too fast! Please slow down.');
+                        WarningMessage.value = error.response.data.message || 'Mining too fast! Please slow down.';
+                        showWarning.value = true;
                     } else{
                         alert('Failed to complete mining. Please try again.');
                     }
                 } finally {
                     isMining.value = false;
+                    handleStartMining(); // Restart mining on the next block
                 }
             }
         };
         
         return {
+            Blocks,
+            fetchBlocks,
             toggleBlockSelection,
             toggleBackpack, 
             toggleUpgrade,
             toggleLeaderBoard,
             togglePrizePack,
+            toggleshowToast,
+            toggleWarning,
             logout,
             fetchUserStats,
             userInfo,
             tokenExpiry,
+            showToast,
             showBlockSelection,
             showBackpack,
             showUpgrade,
             showLeaderBoard,
             showPrizePack,
+            showWarning,
             shovelLevel,
             money,
             handleBlockSelection,
@@ -362,7 +425,11 @@ export default {
             mineBlock,
             damagePerClick,
             showGarbageHint,
-            garbageHintMessage
+            garbageHintMessage,
+            ToastMessage,
+            WarningMessage,
+            lastClickTime,
+            CLICK_COOLDOWN,
         };
     },
 };
@@ -523,5 +590,33 @@ export default {
         padding: 10px;
         padding-top: 50px;
     }
+}
+
+.toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-size: 16px;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.5s;
+}
+
+/* When the toast is shown */
+.toast.fade-enter-active, .toast.fade-leave-active {
+    transition: opacity 0.5s ease-in-out;
+}
+
+.toast.fade-enter-from, .toast.fade-leave-to {
+    opacity: 0;
+}
+
+.toast.fade-enter-to, .toast.fade-leave-from {
+    opacity: 1;
 }
 </style>
