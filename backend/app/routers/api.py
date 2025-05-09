@@ -244,6 +244,12 @@ async def start_mining(
     db: Session = Depends(get_db)
 ):
     """Start mining a block"""
+    if request.session.get(f"mining_{current_user.id}"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An active mining session already exists. Please complete or cancel it first."
+        )
+
     block = db.query(Block).filter(Block.id == block_id).first()
     if not block:
         raise HTTPException(status_code=404, detail=f"Block with id {block_id} not found")
