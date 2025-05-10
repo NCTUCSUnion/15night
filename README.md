@@ -20,8 +20,9 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ### Database Setup
 ```sh
+docker run --name mysql-local -e MYSQL_ROOT_PASSWORD=root -p 3306:3306 -d mysql:latest
 cd backend
-# alembic revision --autogenerate -m "Add new field"
+alembic revision --autogenerate -m "Add new field"
 alembic upgrade head
 ```
 

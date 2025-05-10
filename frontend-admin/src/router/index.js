@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import Home from "../views/Home.vue";
 import Login from "../views/Login.vue";
 import Prize from "../views/Prize.vue";
+import Leaderboard from "../views/Leaderboard.vue";
 
 const routes = [
   {
@@ -19,6 +20,11 @@ const routes = [
     name: "Prize",
     component: Prize,
     meta: { requiresAuth: true },
+  },
+  {
+    path: "/leaderboard",
+    name: "Leaderboard",
+    component: Leaderboard,
   },
 ];
 

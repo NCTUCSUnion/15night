@@ -60,7 +60,7 @@
                 </div>
                 <div class="flex justify-between items-center text-sm">
                   <span class="text-gray-600">Prize Chance:</span>
-                  <span>{{ (block.prize_chance / 100) }}%</span>
+                  <span>{{ block.prize_chance / 100 }}%</span>
                 </div>
                 <div class="flex justify-between items-center text-sm">
                   <span class="text-gray-600">Prize Quantity:</span>

@@ -6,6 +6,7 @@
       </TheDropDownNavbarLogo>
     </template>
     <TheDropDownItem link="/">Home</TheDropDownItem>
+    <TheDropDownItem link="/leaderboard">Leaderboard</TheDropDownItem>
 
     <template v-if="!isLoggedIn">
       <TheDropDownItem link="/login">Login</TheDropDownItem>
