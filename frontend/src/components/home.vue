@@ -7,9 +7,6 @@
             <div class="student-id">Hello, {{ userInfo?.studentId || 'User' }}</div>
             <button class="logout-btn" @click="logout">Logout</button>
         </div>
-        <div class="header">
-            <h1>15Night Game</h1>
-        </div>
         <div class="game-category">
             <div class="category-buttons">
                 <button @click="togglePrizePack">

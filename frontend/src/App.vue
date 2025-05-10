@@ -34,7 +34,7 @@ export default {
 <style>
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'VT323', monospace;
   background-color: #f5f5f5;
 }
 
