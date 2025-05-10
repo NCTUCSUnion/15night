@@ -1,7 +1,7 @@
 <template>
   <TheDropDownNavbar>
     <template #logo>
-      <TheDropDownNavbarLogo link="/" imageUrl="/images/icon.png">
+      <TheDropDownNavbarLogo link="/" imageUrl="/icon.png">
         15 Night Admin Panel
       </TheDropDownNavbarLogo>
     </template>
