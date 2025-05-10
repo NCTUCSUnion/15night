@@ -17,8 +17,18 @@ services:
     restart: always
     ports:
       - "8321:8000"
+    depends_on:
+      - mysql
     env_file:
       - ./backend/.env.prod
+  
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: cs15night
+    volumes:
+      - mysql_data:/var/lib/mysql
 
 volumes:
   mysql_data:
