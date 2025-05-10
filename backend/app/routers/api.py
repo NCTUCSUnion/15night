@@ -21,6 +21,7 @@ from pathlib import Path
 from app.dependencies import get_db
 from app.models import User, Block, BackpackItem, Prize
 from app.config import settings
+from urllib.parse import unquote
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token")
@@ -90,10 +91,19 @@ async def login_for_access_token(
     }
 
 @router.get("/oauth/login")
-async def oauth_nycu_login(request: Request):
+async def oauth_nycu_login(
+    request: Request,
+    redirect_to: Optional[str] = Query(None),
+):
     csrf_token = secrets.token_urlsafe(32)
     request.session['csrf_token'] = csrf_token
-    
+    if redirect_to:
+        decoded_redirect_to = unquote(redirect_to)
+        print(f"Decoded redirect_to: {decoded_redirect_to}")
+        request.session['after_login_redirect'] = decoded_redirect_to
+    else:
+        request.session['after_login_redirect'] = settings.FRONTEND_URL + settings.FRONTEND_REDIRECT_PATH
+
     scopes = "profile"
     auth_url = (
         f"{settings.NYCU_AUTHORIZE_URL}"
@@ -160,9 +170,13 @@ async def oauth_nycu_callback(
         "jti": str(uuid.uuid4()), 
     }
     our_jwt_token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
-    
-    front_end_redirect_url = f"{settings.FRONTEND_URL}{settings.FRONTEND_REDIRECT_PATH}?token={our_jwt_token}"
-    return RedirectResponse(url=front_end_redirect_url)
+
+    redirect_to = request.session.pop('after_login_redirect', None)
+    if not redirect_to:
+        redirect_to = settings.FRONTEND_URL + settings.FRONTEND_REDIRECT_PATH
+
+    url = f"{redirect_to}?token={our_jwt_token}"
+    return RedirectResponse(url=url)
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
@@ -353,14 +367,13 @@ async def complete_mining(
         )
         db.add(new_item)
     
-    # Calculate money earned based on garbage, prize or normal mining
     base_money = random.randint(1, 5) * current_user.shovel_level
     
     if got_garbage:
-        money_earned = max(1, base_money // 2)  # Reduced earnings for garbage
+        money_earned = max(1, base_money // 2)
         message = f"You found garbage! Reduced money earned."
     elif got_prize:
-        money_earned = base_money * 2  # Double earnings for prize
+        money_earned = base_money * 2
         
         # Create a new prize record
         new_prize = Prize(
@@ -953,6 +966,7 @@ async def get_all_prizes(
             "student_id": user.student_id if user else "Unknown",
             "block_id": prize.block_id,
             "block_name": block.name if block else "Unknown",
+            "prize_name": block.prize_name if block else "Unknown",
             "claimed": prize.claimed,
             "created_at": prize.created_at.isoformat(),
             "claimed_at": prize.claimed_at.isoformat() if prize.claimed_at else None

@@ -7,14 +7,16 @@ from app.config import settings
 app = FastAPI(
     title="15 Night Backend API",
     version="1.0.0",
-    docs_url="/docs",
-    openapi_url="/docs/openapi.json",
+    # docs_url="/docs",
+    # openapi_url="/docs/openapi.json",
+    docs_url=None,
     redoc_url=None
 )
 
 origins = [
     "http://localhost:3000",
     "http://localhost:5173",
+    "http://localhost:5174",
     "http://localhost:8080",
 ]
 
