@@ -30,18 +30,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}   
 
-      # - name: Build and push Frontend Docker image
-      #   uses: docker/build-push-action@v4
-      #   with:
-      #     context: ./frontend
-      #     file: ./frontend/Dockerfile
-      #     push: true
-      #     platforms: linux/amd64,linux/arm64
-      #     tags: |
-      #       ghcr.io/nctucsunion/cs15night:frontend
-      #       ghcr.io/nctucsunion/cs15night:frontend-${{ github.sha }}
-      #     build-args: |
-      #       VITE_API_BASE_URL=${{ secrets.FRONTEND_API_BASE_URL }}
+      - name: Build and push Frontend Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/nctucsunion/cs15night:frontend
+            ghcr.io/nctucsunion/cs15night:frontend-${{ github.sha }}
+          build-args: |
+            VITE_API_BASE_URL=${{ secrets.FRONTEND_API_BASE_URL }}
 
       - name: Build and push Frontend Admin Docker image
         uses: docker/build-push-action@v4
@@ -56,13 +56,13 @@ jobs:
           build-args: |
             VITE_API_BASE_URL=${{ secrets.FRONTEND_API_BASE_URL }}
 
-      # - name: Build and push Backend Docker image
-      #   uses: docker/build-push-action@v4
-      #   with:
-      #     context: ./backend
-      #     file: ./backend/Dockerfile
-      #     push: true
-      #     platforms: linux/amd64,linux/arm64
-      #     tags: |
-      #       ghcr.io/nctucsunion/cs15night:backend
-      #       ghcr.io/nctucsunion/cs15night:backend-${{ github.sha }}
+      - name: Build and push Backend Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/nctucsunion/cs15night:backend
+            ghcr.io/nctucsunion/cs15night:backend-${{ github.sha }}

@@ -29,4 +29,7 @@ alembic upgrade head
 ## Deployment Instructions
 ```sh
 docker compose -f docker-compose.prod.yaml up -d
+docker exec -it 15night_backend bash
+alembic revision --autogenerate -m "Add new field"
+alembic upgrade head
 ```
