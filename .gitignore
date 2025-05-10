@@ -13,7 +13,7 @@ dist/
 build/
 
 # Docker
-docker-compose
-Dockerfile
+# docker-compose
+# Dockerfile
 
 test_db

@@ -1,32 +1,22 @@
 services:
   frontend:
-    build: 
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: ghcr.io/nctucsunion/cs15night:frontend
     container_name: 15night_frontend
     restart: always
     ports:
       - "8081:4173"
-    env_file:
-      - ./frontend/.env
   frontend-admin:
-    build: 
-      context: ./frontend-admin
-      dockerfile: Dockerfile
+    image: ghcr.io/nctucsunion/cs15night:frontend-admin
     container_name: 15night_frontend_admin
     restart: always
     ports:
       - "8082:4173"
-    env_file:
-      - ./frontend-admin/.env
   backend:
-    build: 
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ghcr.io/nctucsunion/cs15night:backend
     container_name: 15night_backend
     restart: always
     ports:
-      - "8000:8000"
+      - "8321:8000"
     env_file:
       - ./backend/.env
 

@@ -27,5 +27,5 @@ alembic upgrade head
 
 ## Deployment Instructions
 ```sh
-
+docker compose -f docker-compose.prod.yml up -d
 ```
