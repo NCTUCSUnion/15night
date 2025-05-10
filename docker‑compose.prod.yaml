@@ -1,10 +1,10 @@
 services:
-  frontend:
-    image: ghcr.io/nctucsunion/cs15night:frontend
-    container_name: 15night_frontend
-    restart: always
-    ports:
-      - "8081:4173"
+  # frontend:
+  #   image: ghcr.io/nctucsunion/cs15night:frontend
+  #   container_name: 15night_frontend
+  #   restart: always
+  #   ports:
+  #     - "8081:4173"
   frontend-admin:
     image: ghcr.io/nctucsunion/cs15night:frontend-admin
     container_name: 15night_frontend_admin

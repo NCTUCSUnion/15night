@@ -48,6 +48,7 @@ jobs:
           context: ./frontend-admin
           file: ./frontend-admin/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/nctucsunion/cs15night:frontend-admin
             ghcr.io/nctucsunion/cs15night:frontend-admin-${{ github.sha }}
@@ -60,6 +61,7 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/nctucsunion/cs15night:backend
             ghcr.io/nctucsunion/cs15night:backend-${{ github.sha }}
