@@ -10,33 +10,52 @@
         <div class="header">
             <h1>15Night Game</h1>
         </div>
-        <div class="user-info">
-            <p>Money: {{ money }}</p>
-            <p>Shovel Level: {{ shovelLevel }}</p>
+        <div class="game-category">
+            <div class="category-buttons">
+                <button @click="togglePrizePack">
+                <img src="../assets/button/recycle_btn.png"/>
+                </button>
+                <button @click="toggleBackpack">
+                <img src="../assets/button/backpack_btn.png"/>
+                </button>
+                <button @click="toggleUpgrade">
+                <img src="../assets/button/upgrade_btn.png"/>
+                </button>
+                <button @click="toggleLeaderBoard">
+                <img src="../assets/button/leaderboard_btn.png"/>
+                </button>
+                <button @click="toggleBlockSelection">
+                <img src="../assets/button/cube_btn.png"/>
+                </button>
+            </div>
         </div>
         
         <!-- Mining progress display and button -->
         <div v-if="selectedBlock && blockHealth > 0" class="mining-controls">
-            <div class="mining-progress-container">
-                <div class="mining-progress-bar" :style="{width: `${(blockHealth / maxBlockHealth) * 100}%`}"></div>
-            </div>
-            <p>Block Health: {{ blockHealth }}/{{ maxBlockHealth }}</p>
             <button 
                 class="mining-button" 
                 @click="mineBlock" 
                 :disabled="!selectedBlock || !isMining"
             >
-                Mine Block
+                <img src="../assets/blocks/dirt.png">
             </button>
-        </div>
-        <div class="game-category">
-            <div class="category-buttons">
-                <button @click="toggleBlockSelection">Select Block</button>
-                <button @click="toggleBackpack">Backpack</button>
-                <button @click="toggleUpgrade">Upgrade</button>
-                <button @click="toggleLeaderBoard">Leaderboard</button>
-                <button @click="togglePrizePack">Prize Pack</button>
+            <div class="mining-progress-container">
+                <div class="mining-progress-bar" :style="{width: `${(blockHealth / maxBlockHealth) * 100}%`}"></div>
             </div>
+                <p>
+                <img src="../assets/icon/hp_icon.png" alt="Health" class="info-icon" />
+                : {{ blockHealth }} / {{ maxBlockHealth }}
+                </p>
+        </div>
+        <div class="user-info">
+            <p>
+            <img src="../assets/icon/coin_icon.png" alt="Money" class="info-icon" />
+            X {{ money }}
+            </p>
+            <p>
+                <img src="../assets/icon/pickaxe_icon.png" alt="Shovel" class="info-icon" />
+                LV : {{ shovelLevel }}
+            </p>
         </div>
         <BlockSelection 
             v-if="showBlockSelection"
@@ -126,11 +145,11 @@ export default {
         const WarningMessage = ref('');
         const showWarning = ref(false);
         const lastClickTime = ref(0);
-        const CLICK_COOLDOWN = 50;
+        const CLICK_COOLDOWN = 1; // 500ms cooldown between clicks
 
         // Calculate damage based on shovel level
         const damagePerClick = computed(() => {
-            return shovelLevel.value;
+            return shovelLevel.value; // 5 damage per shovel level
         });
         const Blocks = ref([]);
         const fetchBlocks = async () => {
@@ -178,66 +197,29 @@ export default {
                     },
                     withCredentials: true
                 });
-
-                if (response.data.mining) {
-                    isMining.value = true;
+                isMining.value = response.data.mining;
+                if(isMining.value) {
                     selectedBlockId.value = response.data.block_id;
-
-                    // Populate selectedBlock with data from the status response
-                    // This ensures the UI has the correct information for the ongoing session
-                    selectedBlock.value = {
-                        id: response.data.block_id,
-                        name: response.data.name,
-                        health: response.data.health, // This is likely the block's max health
-                        got_garbage: response.data.got_garbage,
-                        got_prize: response.data.got_prize,
-                        prize_info: response.data.prize_info
-                        // If other static block properties are needed on selectedBlock.value,
-                        // you might want to merge with data from Blocks.value:
-                        // const fullBlockDetails = Blocks.value.find(b => b.id === response.data.block_id);
-                        // if (fullBlockDetails) {
-                        //   selectedBlock.value = { ...fullBlockDetails, ...selectedBlock.value };
-                        // }
-                    };
-                    
-                    // Set current and max health. Based on current logic elsewhere,
-                    // health from /status (and /start) seems to be the block's original/max health.
-                    blockHealth.value = response.data.health;
-                    maxBlockHealth.value = response.data.health;
-
-                    console.log('Mining session restored from /api/blocks/status:', selectedBlock.value);
-                    // DO NOT set isMining.value = false;
-                    // DO NOT call handleStartMining();
-                } else {
+                    selectedBlock.value = Blocks.value.find(b => b.id === selectedBlockId.value) || Blocks.value[0];
                     isMining.value = false;
-                    // Optionally, you might want to clear selectedBlock if no session is active,
-                    // though loadDefaultBlock would handle setting a new one if needed.
-                    // selectedBlock.value = null;
-                    // blockHealth.value = 0;
-                    // maxBlockHealth.value = 0;
+                    handleStartMining();
                 }
             } catch (error) {
                 console.error('Error checking mining status:', error);
-                isMining.value = false; // Assume not mining on error
             }
         };
 
-        // Minor correction in loadDefaultBlock for a typo
+        // Load default block (id = 1) if nothing is selected
         const loadDefaultBlock = async () => {
-            // Blocks.value should already be fetched by onMounted before this is typically called.
-            // If it can be called in other contexts, ensure Blocks.value is populated.
-            // Blocks.value = await fetchBlocks(); // This might be redundant if onMounted always runs first.
+            Blocks.value = await fetchBlocks();
             if (Blocks.value && Blocks.value.length > 0) {
-                // Ensure a block is selected to start mining on
-                if (!selectedBlock.value) { // Only set a default if no block is selected (e.g. by syncMiningStatus)
-                    const defaultBlockIdToLoad = 1; // Or some other logic for default
-                    const defaultBlock = Blocks.value.find(b => b.id === defaultBlockIdToLoad) || Blocks.value[0];
+                // Find block with ID 1 or use first block
+                selectedBlockId.value = selectedBlockId.value ? selectedBlockId.value : 1;
+                if(!selectedBlock.value) {
+                    const defaultBlock = Blocks.value.find(b => b.id === selectedBlockId.values) || Blocks.value[0];
                     selectedBlock.value = defaultBlock;
                 }
-                selectedBlockId.value = selectedBlock.value.id; // Ensure selectedBlockId is also in sync
-
-                // blockHealth and maxBlockHealth will be set by handleStartMining
-                handleStartMining(); // This is correct here, to initiate mining on the default block
+                handleStartMining();
             }
             else {
                 console.error('No blocks available to load as default.');
@@ -417,8 +399,8 @@ export default {
                     console.log('Toast message:', ToastMessage.value);
                 } catch (error) {
                     console.error('Error completing mining:', error);
-                    if (error.response?.status === 400 && error.response?.data?.detail?.includes('Mining too fast')) {
-                        WarningMessage.value = 'Mining too fast! Please slow down.';
+                    if (error.response?.status === 400 && error.response?.data?.message?.includes('Mining too fast')) {
+                        WarningMessage.value = error.response.data.message || 'Mining too fast! Please slow down.';
                         showWarning.value = true;
                     } else{
                         alert('Failed to complete mining. Please try again.');
@@ -467,8 +449,7 @@ export default {
             WarningMessage,
             lastClickTime,
             CLICK_COOLDOWN,
-        };
-    },
+        };    },
 };
 </script>
 
@@ -515,6 +496,9 @@ export default {
 }
 
 .user-info {
+    font-family: "VT323", Helvetica;  /* 設定字型 */
+    font-size: 30px;                    /* 字體大小 */
+    font-weight: bold;                  /* 字體粗細 */
     display: flex;
     justify-content: space-around;
     background-color: #f5f5f5;
@@ -524,10 +508,17 @@ export default {
 }
 
 .user-info p {
-    margin: 0;
-    font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
 }
 
+.info-icon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
 .logout-btn {
     background-color: #dc3545;
     color: white;
@@ -547,71 +538,82 @@ export default {
 }
 
 .category-buttons {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-top: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;  
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0;
+    background: none;
+    border: none;
 }
 
 .category-buttons button {
-    padding: 12px 0;
-    background-color: #4285f4;
-    color: white;
+    background: none;
     border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
+    padding: 0;
 }
 
-.category-buttons button:hover {
-    background-color: #3367d6;
+.category-buttons img {
+    width: 50px;
+    height: 50px;
 }
+
 
 /* Mining Controls */
 .mining-controls {
-    margin: 15px 0;
-    padding: 15px;
-    background-color: #f5f5f5;
-    border-radius: 8px;
-    text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;         /* ⬅️ 這就是橫向置中的關鍵 */
+  margin: 15px 0;
+  padding: 15px;
+  background-color: transparent;
+  border-radius: 8px;
+  text-align: center;
 }
-
-.mining-progress-container {
-    width: 100%;
-    height: 20px;
-    background-color: #e0e0e0;
-    border-radius: 10px;
-    margin-bottom: 10px;
-    overflow: hidden;
-}
-
-.mining-progress-bar {
-    height: 100%;
-    background-color: #4CAF50;
-    transition: width 0.3s ease;
+.mining-controls p {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'VT323', monospace;
+  font-size: 30px;
+  margin-top: 8px;
 }
 
 .mining-button {
-    padding: 15px 0;
-    width: 100%;
-    background-color: #ff9800;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-    margin-top: 10px;
-    font-size: 16px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 
-.mining-button:hover {
-    background-color: #f57c00;
+.mine-icon {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
 }
 
-.mining-button:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
+.mining-progress-container {
+  width: 100%;
+  height: 20px;
+  background-color: transparent; /* 可加淡綠或透明 */
+  border: 1px solid #4CAF50;
+  border-radius: 10px;
+  margin-top: 10px;
+  overflow: hidden;
 }
+
+.mining-progress-bar {
+  height: 100%;
+  background-color: #4CAF50;
+  transition: width 0.3s ease;
+}
+
+.mining-button:disabled .mine-icon {
+  opacity: 0.4;
+}
+
 
 /* Add meta viewport tag to ensure proper scaling */
 @media (max-width: 480px) {
