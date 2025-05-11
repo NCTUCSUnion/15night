@@ -19,5 +19,10 @@ export default defineConfig({
       //   changeOrigin: true
       // }
     }
-  }
+  },
+  preview: {
+    host: true,
+    port: 4173,
+    allowedHosts: ['15night.nctucsunion.me'],
+  },
 })
