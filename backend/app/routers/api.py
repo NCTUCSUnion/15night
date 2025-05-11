@@ -365,7 +365,7 @@ async def complete_mining(
         )
         db.add(new_item)
     
-    t = 60  # Expected time to upgrade (in seconds)
+    t = 45  # Expected time to upgrade (in seconds)
     base_money = 20 * block.health / t
     base_money *= random.uniform(0.8, 1.2)
     
