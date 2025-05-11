@@ -160,9 +160,18 @@ export default {
       }
     };
 
+    let intervalId = null;
     onMounted(() => {
       if (isLoggedIn.value) {
         fetchBlocks();
+      }
+      fetchBlocks();
+      intervalId = setInterval(fetchLeaderboard, 5000);
+    });
+
+    onUnmounted(() => {
+      if (intervalId) {
+        clearInterval(intervalId);
       }
     });
 
