@@ -34,7 +34,7 @@
                 @click="mineBlock" 
                 :disabled="!selectedBlock || !isMining"
             >
-                <img src="../assets/blocks/dirt.png">
+                <img :src="currentBlockImage" class="mine-icon" />
             </button>
             <div class="mining-progress-container">
                 <div class="mining-progress-bar" :style="{width: `${(blockHealth / maxBlockHealth) * 100}%`}"></div>
@@ -149,6 +149,7 @@ export default {
         const WarningMessage = ref('');
         const showWarning = ref(false);
         const lastClickTime = ref(0);
+        const currentBlockImage = ref('');
         const CLICK_COOLDOWN = 50;
         const priceHintMessage = ref('');
         const showPrizeHint = ref(false);
@@ -395,6 +396,7 @@ export default {
                 selectedBlock.value = blockData;
                 blockHealth.value = response.data.health;
                 maxBlockHealth.value = response.data.health;
+                currentBlockImage.value = new URL(`../assets/blocks/${selectedBlock.value.name.toLowerCase()}.png`, import.meta.url).href;
                 console.log('Block health:', blockHealth.value);
                 console.log('selectedBlock:', selectedBlock.value);
                 if (response.data.got_prize) {
@@ -501,6 +503,7 @@ export default {
             ToastMessage,
             WarningMessage,
             lastClickTime,
+            currentBlockImage,
             CLICK_COOLDOWN,
             showPrizeHint,
             togglePrizeHint
@@ -618,6 +621,7 @@ export default {
 
 /* Mining Controls */
 .mining-controls {
+  user-select: none;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -645,8 +649,8 @@ export default {
 }
 
 .mine-icon {
-  width: 64px;
-  height: 64px;
+  width: 165px;
+  height: 165px;
   object-fit: contain;
 }
 
