@@ -84,7 +84,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import axios from "axios";
 import { authStore } from "../store/auth";
 
@@ -164,9 +164,8 @@ export default {
     onMounted(() => {
       if (isLoggedIn.value) {
         fetchBlocks();
+        intervalId = setInterval(fetchBlocks, 5000);
       }
-      fetchBlocks();
-      intervalId = setInterval(fetchLeaderboard, 5000);
     });
 
     onUnmounted(() => {
