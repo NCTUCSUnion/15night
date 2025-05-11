@@ -485,8 +485,6 @@ export default {
                     if (error.response?.status === 400 && error.response?.data?.detail?.includes('Mining too fast')) {
                         WarningMessage.value = 'Mining too fast! Please slow down.';
                         showWarning.value = true;
-                    } else{
-                        alert('Failed to complete mining. Please try again.');
                     }
                     const token = localStorage.getItem('token');
                     await axios.post(`/api/blocks/${selectedBlock.value.id}/cancel`, {}, {
