@@ -869,7 +869,7 @@ async def seed_blocks(current_user: User = Depends(get_current_user), db: Sessio
             {
                 "name": "Dirt",
                 "enabled": False,
-                "prize_chance": 100,
+                "prize_chance": 50,
                 "garbage_chance": 20,
                 "prize_name": "米庫早午食堂 折價券",
                 "quantity": 10,
@@ -878,7 +878,7 @@ async def seed_blocks(current_user: User = Depends(get_current_user), db: Sessio
             {
                 "name": "Stone",
                 "enabled": False,
-                "prize_chance": 100,
+                "prize_chance": 50,
                 "garbage_chance": 20,
                 "prize_name": "lala kitchen 折價券",
                 "quantity": 1,
@@ -887,7 +887,7 @@ async def seed_blocks(current_user: User = Depends(get_current_user), db: Sessio
             {
                 "name": "Coal",
                 "enabled": False,
-                "prize_chance": 100,
+                "prize_chance": 50,
                 "garbage_chance": 20,
                 "prize_name": "escapeholic 單人遊玩券",
                 "quantity": 1,
@@ -896,7 +896,7 @@ async def seed_blocks(current_user: User = Depends(get_current_user), db: Sessio
             {
                 "name": "Iron",
                 "enabled": False,
-                "prize_chance": 100,
+                "prize_chance": 50,
                 "garbage_chance": 20,
                 "prize_name": "跳動格子單人免費券",
                 "quantity": 1,
@@ -905,7 +905,7 @@ async def seed_blocks(current_user: User = Depends(get_current_user), db: Sessio
             {
                 "name": "Gold",
                 "enabled": False,
-                "prize_chance": 100,
+                "prize_chance": 50,
                 "garbage_chance": 20,
                 "prize_name": "金色三麥 啤酒招待券",
                 "quantity": 2,
@@ -914,7 +914,7 @@ async def seed_blocks(current_user: User = Depends(get_current_user), db: Sessio
             {
                 "name": "Diamond",
                 "enabled": False,
-                "prize_chance": 100,
+                "prize_chance": 50,
                 "garbage_chance": 20,
                 "prize_name": "鉄燒餃子 百元折價券",
                 "quantity": 10,
