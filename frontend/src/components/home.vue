@@ -90,6 +90,11 @@
          @close="toggleWarning"
          :message="WarningMessage"
         />
+        <PrizePopup
+         v-if="showPrizeHint"
+         @close="togglePrizeHint"
+         :message="priceHintMessage"
+        />
     </div>
 </template>
 
@@ -105,6 +110,7 @@ import LeaderBoard from './LeaderBoard.vue';
 import GarbageHintPopup from './GarbageHintPopup.vue';
 import PrizePack from './PrizePack.vue';
 import WarningModal from './WarningModal.vue';
+import PrizePopup from './PrizePopup.vue';
 export default {
     name: 'Home',
     components: {
@@ -114,7 +120,8 @@ export default {
         LeaderBoard,
         GarbageHintPopup,
         PrizePack,
-        WarningModal
+        WarningModal,
+        PrizePopup
     },
     created() {
         axios.defaults.withCredentials = true;
@@ -143,6 +150,8 @@ export default {
         const showWarning = ref(false);
         const lastClickTime = ref(0);
         const CLICK_COOLDOWN = 50;
+        const priceHintMessage = ref('');
+        const showPrizeHint = ref(false);
 
         // Calculate damage based on shovel level
         const damagePerClick = computed(() => {
@@ -318,6 +327,9 @@ export default {
             showWarning.value = !showWarning.value;
         };
 
+        const togglePrizeHint = () => {
+            showPrizeHint.value = !showPrizeHint.value;
+        };
         const logout = () => {
             // Remove the token
             removeToken();
@@ -385,6 +397,9 @@ export default {
                 maxBlockHealth.value = response.data.health;
                 console.log('Block health:', blockHealth.value);
                 console.log('selectedBlock:', selectedBlock.value);
+                if (response.data.got_prize) {
+                    priceHintMessage.value = response.data.prize_info.prize_name;
+                }
             } catch (error) {
                 console.error('Mining error:', error);
                 alert('Failed to mine block. Please try again.');
@@ -422,15 +437,18 @@ export default {
                         },
                         withCredentials: true
                     });
-                    if(response.data.got_garbage) {
-                        showGarbageHint.value = true;
-                        garbageHintMessage.value = `You received garbage!`;
-                    }
                     // Update user stats after successful mining
                     await fetchUserStats();
                     toggleshowToast();
                     ToastMessage.value = `You earn ${response.data.money_earned} money!`;
                     console.log('Toast message:', ToastMessage.value);
+                    if(response.data.got_garbage) {
+                        showGarbageHint.value = true;
+                        garbageHintMessage.value = `You received garbage!`;
+                    }
+                    if(response.data.got_prize) {
+                        showPrizeHint.value = true;
+                    }
                 } catch (error) {
                     console.error('Error completing mining:', error);
                     if (error.response?.status === 400 && error.response?.data?.detail?.includes('Mining too fast')) {
@@ -479,10 +497,13 @@ export default {
             damagePerClick,
             showGarbageHint,
             garbageHintMessage,
+            priceHintMessage,
             ToastMessage,
             WarningMessage,
             lastClickTime,
             CLICK_COOLDOWN,
+            showPrizeHint,
+            togglePrizeHint
         };
     },
 };
