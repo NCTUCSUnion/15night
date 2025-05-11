@@ -1,7 +1,7 @@
 <template>
     <div v-if="isVisible" class="garbage-modal-overlay">
         <div class="popup-container">
-            <h2>你挖到了一個垃圾！哪個選項是正確的垃圾分類呢？</h2>
+            <h2>You dug up a garbage.</h2>
             <p>{{ hintMessage }}</p>
             <div class="garbage-image">
                 <img :src="garbageImage" alt="Garbage image" />
@@ -10,30 +10,24 @@
             <div class="garbage-grid">
                 <div class="garbage-row">
                     <div class="garbage-card" @click="checkAnswer(1)">
-                        <img src="@/assets/garbage/icon/1.jpg" alt="Trash" />
-                        <p>一般垃圾 (Trash)</p>
+                        <img src="@/assets/garbage/icon/trash.png" alt="Trash" />
                     </div>
                     <div class="garbage-card" @click="checkAnswer(2)">
-                        <img src="@/assets/garbage/icon/2.jpg" alt="Plastic" />
-                        <p>塑膠類 (Plastic)</p>
+                        <img src="@/assets/garbage/icon/plastic.png" alt="Plastic" />
                     </div>
                     <div class="garbage-card" @click="checkAnswer(3)">
-                        <img src="@/assets/garbage/icon/3.jpg" alt="Paper" />
-                        <p>紙類 (Paper)</p>
+                        <img src="@/assets/garbage/icon/paper.png" alt="Paper" />
                     </div>
                 </div>
                 <div class="garbage-row">
                     <div class="garbage-card" @click="checkAnswer(4)">
-                        <img src="@/assets/garbage/icon/4.jpg" alt="Metal" />
-                        <p>金屬類 (Metal)</p>
+                        <img src="@/assets/garbage/icon/metal.png" alt="Metal" />
                     </div>
                     <div class="garbage-card" @click="checkAnswer(5)">
-                        <img src="@/assets/garbage/icon/5.jpg" alt="Glass" />
-                        <p>玻璃類 (Glass)</p>
+                        <img src="@/assets/garbage/icon/glass.png" alt="Glass" />
                     </div>
                     <div class="garbage-card" @click="checkAnswer(6)">
-                        <img src="@/assets/garbage/icon/6.jpg" alt="Food Waste" />
-                        <p>廚餘 (Food Waste)</p>
+                        <img src="@/assets/garbage/icon/food.png" alt="Food Waste" />
                     </div>
                 </div>
             </div>
@@ -186,33 +180,33 @@ export default {
     justify-content: space-between;
     margin-bottom: 10px;
 }
-
 .garbage-card {
-    width: 30%;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    background-color: white;
+  width: 30%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  background-color: transparent;
+  transition: transform 0.2s;
 }
 
 .garbage-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    border-color: #4285f4;
+  transform: translateY(-3px);
+  box-shadow: none;
 }
 
 .garbage-card img {
-    width: 100%;
-    height: auto;
-    border-radius: 4px;
+  width: 100%;
+  height: auto;
+  border-radius: 0; /* 或保留你要的弧度 */
+  display: block;
 }
 
 .garbage-card p {
-    margin-top: 6px;
-    text-align: center;
-    font-size: 14px;
+  margin-top: 6px;
+  text-align: center;
+  font-size: 14px;
+  font-family: 'VT323', monospace; /* 選用像素字體可加 */
 }
 
 h2 {
