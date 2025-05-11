@@ -63,7 +63,7 @@ export default {
             6: 'food_waste'
         };
 
-        onMounted(() => {
+        onMounted(async () => {
             // Generate random number between 1-6 for garbage type
             garbageType.value = Math.floor(Math.random() * 6) + 1;
             
@@ -73,10 +73,18 @@ export default {
             // Get folder name for the selected type
             const folderName = garbageTypeFolders[garbageType.value];
             
+            try {
+                // Use dynamic import with Vite
+                const imageModule = await import(`../assets/garbage/${folderName}/${randomImageNumber}.jpg`);
+                garbageImage.value = imageModule.default;
+                console.log(`Garbage Type: ${garbageType.value}, Image Path: ${garbageImage.value}`);
+            } catch (error) {
+                console.error(`Error loading image: ${error}`);
+            }
             // Set image path using public folder
-            garbageImage.value = `@/assets/garbage/${folderName}/${randomImageNumber}.jpg`;
-            
-            console.log(`Garbage Type: ${garbageType.value}, Image Path: ${garbageImage.value}`);
+            // garbageImage.value = `/assets/garbage/${folderName}/${randomImageNumber}.jpg`;
+            // garbageImage.value = require(`@/assets/garbage/${folderName}/${randomImageNumber}.jpg`);
+            // console.log(`Garbage Type: ${garbageType.value}, Image Path: ${garbageImage.value}`);
         });
 
         function closePopup() {
