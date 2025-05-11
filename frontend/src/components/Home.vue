@@ -78,7 +78,7 @@
         />
         <GarbageHintPopup
          v-if="showGarbageHint"
-         @close="showGarbageHint = !showGarbageHint"
+         @close="closeGarbageHint"
          :message="garbageHintMessage"
         />
         <PrizePack
@@ -92,7 +92,7 @@
         />
         <PrizePopup
          v-if="showPrizeHint"
-         @close="togglePrizeHint"
+         @close="closePrizeHint"
          :message="priceHintMessage"
         />
     </div>
@@ -153,6 +153,7 @@ export default {
         const CLICK_COOLDOWN = 50;
         const priceHintMessage = ref('');
         const showPrizeHint = ref(false);
+        const pendingToastMessage = ref(''); // Add this to store pending toast message
 
         // Calculate damage based on shovel level
         const damagePerClick = computed(() => {
@@ -331,6 +332,25 @@ export default {
         const togglePrizeHint = () => {
             showPrizeHint.value = !showPrizeHint.value;
         };
+
+        const closeGarbageHint = () => {
+            showGarbageHint.value = false;
+            if (pendingToastMessage.value) {
+                ToastMessage.value = pendingToastMessage.value;
+                toggleshowToast();
+                pendingToastMessage.value = '';
+            }
+        };
+
+        const closePrizeHint = () => {
+            showPrizeHint.value = false;
+            if (pendingToastMessage.value) {
+                ToastMessage.value = pendingToastMessage.value;
+                toggleshowToast();
+                pendingToastMessage.value = '';
+            }
+        };
+
         const logout = () => {
             // Remove the token
             removeToken();
@@ -439,17 +459,26 @@ export default {
                         },
                         withCredentials: true
                     });
+
                     // Update user stats after successful mining
                     await fetchUserStats();
-                    toggleshowToast();
-                    ToastMessage.value = `You earn ${response.data.money_earned} money!`;
-                    console.log('Toast message:', ToastMessage.value);
+                    
+                    // Store the pending toast message
+                    pendingToastMessage.value = `You earn ${response.data.money_earned} money!`;
+                    
                     if(response.data.got_garbage) {
                         showGarbageHint.value = true;
                         garbageHintMessage.value = `You received garbage!`;
                     }
-                    if(response.data.got_prize) {
+                    else if(response.data.got_prize) {
                         showPrizeHint.value = true;
+                        priceHintMessage.value = response.data.prize_info.prize_name;
+                    }
+                    else {
+                        // Show toast immediately if no popups
+                        ToastMessage.value = pendingToastMessage.value;
+                        toggleshowToast();
+                        pendingToastMessage.value = '';
                     }
                 } catch (error) {
                     console.error('Error completing mining:', error);
@@ -459,6 +488,13 @@ export default {
                     } else{
                         alert('Failed to complete mining. Please try again.');
                     }
+                    const token = localStorage.getItem('token');
+                    await axios.post(`/api/blocks/${selectedBlock.value.id}/cancel`, {}, {
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        },
+                        withCredentials: true
+                    });
                 } finally {
                     isMining.value = false;
                     handleStartMining(); // Restart mining on the next block
@@ -506,7 +542,9 @@ export default {
             currentBlockImage,
             CLICK_COOLDOWN,
             showPrizeHint,
-            togglePrizeHint
+            togglePrizeHint,
+            closeGarbageHint,
+            closePrizeHint
         };
     },
 };
