@@ -347,11 +347,9 @@ async def complete_mining(
     block = db.query(Block).filter(Block.id == block_id).first()
     if not block:
         raise HTTPException(status_code=404, detail=f"Block with id {block_id} not found")
-    
-    # Clear the mining session
+
     request.session.pop(f"mining_{current_user.id}", None)
     
-    # Add block to backpack
     backpack_item = db.query(BackpackItem).filter(
         BackpackItem.user_id == current_user.id,
         BackpackItem.block_id == block.id
@@ -367,15 +365,16 @@ async def complete_mining(
         )
         db.add(new_item)
     
-    base_money = random.randint(1, 5) * current_user.shovel_level
+    t = 60  # Expected time to upgrade (in seconds)
+    base_money = 20 * block.health / t
+    base_money *= random.uniform(0.8, 1.2)
     
     if got_garbage:
-        money_earned = max(1, base_money // 2)
-        message = f"You found garbage! Reduced money earned."
+        money_earned = int(base_money * random.uniform(1.5, 2.0))
+        message = "You found garbage! Bonus money earned."
     elif got_prize:
-        money_earned = base_money * 2
-        
-        # Create a new prize record
+        money_earned = int(base_money)
+
         new_prize = Prize(
             user_id=current_user.id,
             block_id=block.id,
@@ -385,7 +384,7 @@ async def complete_mining(
         db.add(new_prize)
         message = f"Mining completed! You earned a special prize that can be claimed later!"
     else:
-        money_earned = base_money
+        money_earned = int(base_money)
         message = f"Mining completed! Added {block.name} to backpack."
     
     current_user.money += money_earned
