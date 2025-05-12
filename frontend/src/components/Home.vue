@@ -304,7 +304,7 @@ export default {
             if (!isMining.value && !selectedBlock.value) {
                 await loadDefaultBlock();
             }
-
+            currentBlockImage.value = new URL(`../assets/blocks/${selectedBlock.value.name.toLowerCase()}.png`, import.meta.url).href;
             // Check if this is the first visit after login
             const introSeen = localStorage.getItem('introSeen');
             if (!introSeen) {
