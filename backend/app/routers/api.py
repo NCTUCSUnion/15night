@@ -6,6 +6,7 @@ import httpx
 import uuid
 import random
 import secrets
+import pytz
 from passlib.context import CryptContext
 from fastapi import APIRouter, Depends, Query, HTTPException, status, Body
 from typing import Optional, List, Dict
@@ -997,8 +998,11 @@ async def admin_update_claim_status(
     was_claimed = prize.claimed
     prize.claimed = claimed
     
+    utc_8 = pytz.timezone("Asia/Taipei")
+    now_utc8 = datetime.now(utc_8)
+    
     if claimed and not was_claimed:
-        prize.claimed_at = datetime.utcnow()
+        prize.claimed_at = now_utc8
     elif not claimed:
         prize.claimed_at = None
     
