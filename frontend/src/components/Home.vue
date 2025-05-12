@@ -95,6 +95,10 @@
          @close="closePrizeHint"
          :message="priceHintMessage"
         />
+        <IntroductionModal
+         v-if="showIntroduction"
+         @close="closeIntroduction"
+        />
     </div>
 </template>
 
@@ -111,6 +115,8 @@ import GarbageHintPopup from './GarbageHintPopup.vue';
 import PrizePack from './PrizePack.vue';
 import WarningModal from './WarningModal.vue';
 import PrizePopup from './PrizePopup.vue';
+import IntroductionModal from './IntroductionModal.vue';
+
 export default {
     name: 'Home',
     components: {
@@ -121,7 +127,8 @@ export default {
         GarbageHintPopup,
         PrizePack,
         WarningModal,
-        PrizePopup
+        PrizePopup,
+        IntroductionModal
     },
     created() {
         axios.defaults.withCredentials = true;
@@ -153,7 +160,8 @@ export default {
         const CLICK_COOLDOWN = 50;
         const priceHintMessage = ref('');
         const showPrizeHint = ref(false);
-        const pendingToastMessage = ref(''); // Add this to store pending toast message
+        const pendingToastMessage = ref('');
+        const showIntroduction = ref(false);
 
         // Calculate damage based on shovel level
         const damagePerClick = computed(() => {
@@ -296,6 +304,12 @@ export default {
             if (!isMining.value && !selectedBlock.value) {
                 await loadDefaultBlock();
             }
+
+            // Check if this is the first visit after login
+            const introSeen = localStorage.getItem('introSeen');
+            if (!introSeen) {
+                showIntroduction.value = true;
+            }
         });
         
         const toggleBackpack = () => {
@@ -349,6 +363,10 @@ export default {
                 toggleshowToast();
                 pendingToastMessage.value = '';
             }
+        };
+
+        const closeIntroduction = () => {
+            showIntroduction.value = false;
         };
 
         const logout = () => {
@@ -542,7 +560,9 @@ export default {
             showPrizeHint,
             togglePrizeHint,
             closeGarbageHint,
-            closePrizeHint
+            closePrizeHint,
+            showIntroduction,
+            closeIntroduction
         };
     },
 };
